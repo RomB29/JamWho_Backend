@@ -8,7 +8,6 @@ router.use(auth);
 
 router.get('/profiles', swipeController.getProfiles);
 router.post('/like', swipeController.likeProfile);
-router.post('/dislike', swipeController.dislikeProfile);
 router.get('/liked', swipeController.getLikedProfiles);
 
 module.exports = router;

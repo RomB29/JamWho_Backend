@@ -54,7 +54,32 @@ exports.updateProfile = async (req, res) => {
       if (styles !== undefined) profile.styles = styles;
       if (maxDistance !== undefined) profile.maxDistance = maxDistance;
       if (media !== undefined) profile.media = media;
-      if (location !== undefined) profile.location = location;
+      
+      // Gère la localisation : convertit latitude/longitude en format GeoJSON
+      if (location !== undefined) {
+        if (location.latitude !== undefined && location.longitude !== undefined) {
+          // Format avec latitude/longitude séparés
+          if (location.latitude !== null && location.longitude !== null) {
+            profile.location = {
+              type: 'Point',
+              coordinates: [location.longitude, location.latitude] // GeoJSON: [longitude, latitude]
+            };
+          } else {
+            profile.location = {
+              type: 'Point',
+              coordinates: null
+            };
+          }
+        } else if (location.coordinates) {
+          // Format GeoJSON déjà correct
+          profile.location = location;
+        } else if (location === null) {
+          profile.location = {
+            type: 'Point',
+            coordinates: null
+          };
+        }
+      }
       
       profile.updatedAt = new Date();
     }

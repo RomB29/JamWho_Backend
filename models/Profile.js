@@ -48,15 +48,20 @@ const profileSchema = new mongoose.Schema({
   },
   media: [mediaSchema],
   location: {
-    latitude: {
-      type: Number,
-      default: null
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
     },
-    longitude: {
-      type: Number,
-      default: null
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: [-4.481, 48.397] // X-coordinates longitude   Y-coordinates latitude
     }
   },
+  likedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   updatedAt: {
     type: Date,
     default: Date.now
@@ -65,8 +70,24 @@ const profileSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index pour la recherche géographique
-profileSchema.index({ location: '2dsphere' });
+// Index pour la recherche géographique (seulement si location.coordinates existe)
+profileSchema.index({ location: '2dsphere' }, { sparse: true });
+
+// Index pour les likes
+profileSchema.index({ likedUsers: 1 });
+
+// Méthodes virtuelles pour faciliter l'accès à latitude/longitude
+profileSchema.virtual('latitude').get(function() {
+  return this.location?.coordinates?.[1] || null;
+});
+
+profileSchema.virtual('longitude').get(function() {
+  return this.location?.coordinates?.[0] || null;
+});
+
+// Inclure les virtuals dans le JSON
+profileSchema.set('toJSON', { virtuals: true });
+profileSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Profile', profileSchema);
 

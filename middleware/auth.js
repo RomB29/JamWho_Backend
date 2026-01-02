@@ -11,7 +11,7 @@ const auth = async (req, res, next) => {
     }
 
     // Vérifie le token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-change-in-production');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Récupère l'utilisateur
     const user = await User.findById(decoded.userId).select('-password');

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 const connectDB = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -13,15 +14,64 @@ const app = express();
 // Connexion à MongoDB
 connectDB();
 
-// Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:9000',
-  credentials: true
-}));
+// Middleware CORS personnalisé : permet l'accès public aux fichiers statiques
+// et l'accès avec credentials pour les routes API
+app.use((req, res, next) => {
+  const isStaticFile = req.path.startsWith('/profile/');
+  
+  if (isStaticFile) {
+    // Pour les fichiers statiques : accès public depuis n'importe quelle origine
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+  } else {
+    // Pour les routes API : accès depuis le frontend avec credentials
+    const origin = req.headers.origin;
+    const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:9000';
+    
+    if (origin === allowedOrigin) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+
+// Configuration des chemins statiques pour servir les fichiers uploadés
+// Le dossier PUBLIC_UPLOAD doit être au même niveau que server.js
+const staticDirectory = path.join(__dirname);
+const PUBLIC_FOLDER_UPLOAD = 'PUBLIC_UPLOAD';
+
+// Middleware pour servir les fichiers statiques AVANT toutes les autres routes
+// Cette route doit être définie AVANT les routes API pour éviter les conflits
+// Route statique pour servir les photos de profil (ACCÈS PUBLIC - pas d'authentification requise)
+// Accès via: http://localhost:3000/profile/{userId}/photo_uploads/{filename}
+const staticPath = path.join(staticDirectory, `${PUBLIC_FOLDER_UPLOAD}/profile/`);
+
+
+app.use('/profile/', express.static(staticPath, {
+  // Options pour améliorer les performances avec cache
+  setHeaders: (res, filePath) => {
+    // Cache les images pour améliorer les performances
+    if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+      res.set('Cache-Control', 'public, max-age=31536000'); // Cache 1 an
+    }
+  }
+}));
+
+// Routes API (nécessitent authentification)
+// IMPORTANT: Ces routes sont définies APRÈS la route statique /profile/
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/swipe', require('./routes/swipe'));

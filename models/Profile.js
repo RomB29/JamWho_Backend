@@ -9,6 +9,10 @@ const mediaSchema = new mongoose.Schema({
   url: {
     type: String,
     required: true
+  },
+  filename: {
+    type: String,
+    default: null // Nom original du fichier uploadé (null pour youtube/soundcloud)
   }
 }, { _id: false });
 

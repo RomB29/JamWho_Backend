@@ -332,6 +332,9 @@ exports.uploadSong = async (req, res) => {
     const baseUrl = getServerBaseUrl();
     const songUrl = `${baseUrl}/song/${userId}/song_uploads/${req.file.filename}`;
 
+    // Récupère le nom original du fichier uploadé
+    const originalFilename = req.file.originalname || null;
+
     // Détermine le type de fichier depuis l'extension
     const fileExtension = req.file.filename.split('.').pop().toLowerCase();
     let mediaType = 'mp3'; // par défaut
@@ -341,10 +344,11 @@ exports.uploadSong = async (req, res) => {
       mediaType = 'mp3'; // On stocke aussi les WAV comme mp3 dans le modèle
     }
 
-    // Crée l'objet média
+    // Crée l'objet média avec le nom original du fichier
     const newMedia = {
       type: mediaType,
-      url: songUrl
+      url: songUrl,
+      filename: originalFilename // Stocke le nom original du fichier
     };
 
     // Ajoute le fichier audio à la liste des médias du profil
@@ -356,11 +360,16 @@ exports.uploadSong = async (req, res) => {
     profile.updatedAt = new Date();
     await profile.save();
 
+    // Récupère le dernier média ajouté (qui vient d'être sauvegardé)
+    const savedMedia = profile.media[profile.media.length - 1];
+
     res.json({
       success: true,
       message: 'Fichier audio uploadé avec succès',
       songUrl: songUrl,
-      media: profile.media
+      url: songUrl, // Alias pour compatibilité frontend
+      filename: originalFilename, // Nom original du fichier
+      media: savedMedia // Retourne l'objet média complet avec filename
     });
   } catch (error) {
     res.status(500).json({ 

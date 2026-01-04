@@ -313,3 +313,167 @@ exports.deletePhoto = async (req, res) => {
   }
 };
 
+// Upload d'un fichier audio
+exports.uploadSong = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Aucun fichier uploadé' });
+    }
+
+    // Récupère le profil de l'utilisateur
+    let profile = await Profile.findOne({ userId: req.user._id });
+
+    if (!profile) {
+      return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+
+    // Construit l'URL complète du fichier audio avec l'URL de base du serveur
+    const userId = req.user._id.toString();
+    const baseUrl = getServerBaseUrl();
+    const songUrl = `${baseUrl}/song/${userId}/song_uploads/${req.file.filename}`;
+
+    // Détermine le type de fichier depuis l'extension
+    const fileExtension = req.file.filename.split('.').pop().toLowerCase();
+    let mediaType = 'mp3'; // par défaut
+    if (fileExtension === 'mp3' || fileExtension === 'mpeg') {
+      mediaType = 'mp3';
+    } else if (fileExtension === 'wav') {
+      mediaType = 'mp3'; // On stocke aussi les WAV comme mp3 dans le modèle
+    }
+
+    // Crée l'objet média
+    const newMedia = {
+      type: mediaType,
+      url: songUrl
+    };
+
+    // Ajoute le fichier audio à la liste des médias du profil
+    if (!profile.media) {
+      profile.media = [];
+    }
+    profile.media.push(newMedia);
+
+    profile.updatedAt = new Date();
+    await profile.save();
+
+    res.json({
+      success: true,
+      message: 'Fichier audio uploadé avec succès',
+      songUrl: songUrl,
+      media: profile.media
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Erreur lors de l\'upload du fichier audio', 
+      error: error.message 
+    });
+  }
+};
+
+// Supprime un fichier audio
+exports.deleteSong = async (req, res) => {
+  try {
+    const { songUrl } = req.body;
+
+    if (!songUrl) {
+      return res.status(400).json({ message: 'URL du fichier audio requise' });
+    }
+
+    // Récupère le profil de l'utilisateur
+    const profile = await Profile.findOne({ userId: req.user._id });
+
+    if (!profile) {
+      return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+
+    // Vérifie que le média existe dans le profil
+    const mediaIndex = profile.media.findIndex(m => m.url === songUrl);
+    if (mediaIndex === -1) {
+      // Normalise l'URL pour la comparaison (enlève le baseUrl si présent)
+      const baseUrl = getServerBaseUrl();
+      const normalizedSongUrl = songUrl.replace(baseUrl, '');
+      const normalizedMediaUrls = profile.media.map(m => m.url.replace(baseUrl, ''));
+      const normalizedIndex = normalizedMediaUrls.findIndex(url => url === normalizedSongUrl);
+      
+      if (normalizedIndex === -1) {
+        return res.status(404).json({ message: 'Fichier audio non trouvé dans le profil' });
+      }
+    }
+
+    // Parse l'URL pour extraire le chemin relatif
+    // Format attendu: http://domain/song/{userId}/song_uploads/{filename}
+    // ou: /song/{userId}/song_uploads/{filename}
+    let relativePath = songUrl;
+    const baseUrl = getServerBaseUrl();
+    
+    // Si c'est une URL complète, on extrait le chemin relatif
+    if (songUrl.startsWith('http://') || songUrl.startsWith('https://')) {
+      try {
+        const url = new URL(songUrl);
+        relativePath = url.pathname;
+      } catch (error) {
+        // Si l'URL n'est pas valide, on essaie de la parser manuellement
+        const match = songUrl.match(/\/song\/([^\/]+)\/song_uploads\/(.+)$/);
+        if (match) {
+          relativePath = `/song/${match[1]}/song_uploads/${match[2]}`;
+        }
+      }
+    }
+
+    // Vérifie que le chemin correspond au format attendu
+    const pathMatch = relativePath.match(/\/song\/([^\/]+)\/song_uploads\/(.+)$/);
+    if (!pathMatch) {
+      return res.status(400).json({ message: 'Format d\'URL de fichier audio invalide' });
+    }
+
+    const [, songUserId, filename] = pathMatch;
+    const currentUserId = req.user._id.toString();
+
+    // Vérifie que le fichier audio appartient à l'utilisateur connecté
+    if (songUserId !== currentUserId) {
+      return res.status(403).json({ message: 'Vous ne pouvez supprimer que vos propres fichiers audio' });
+    }
+
+    // Construit le chemin du fichier physique
+    const filePath = path.join(__dirname, '../PUBLIC_UPLOAD/profile', songUserId, 'song_uploads', filename);
+
+    // Supprime le fichier physique s'il existe
+    if (fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (error) {
+        console.error('Erreur lors de la suppression du fichier:', error);
+        // On continue même si la suppression du fichier échoue
+      }
+    }
+
+    // Retire le média de la liste du profil
+    // Normalise les URLs pour la comparaison
+    const baseUrlForComparison = getServerBaseUrl();
+    profile.media = profile.media.filter(m => {
+      const normalizedMUrl = m.url.replace(baseUrlForComparison, '');
+      const normalizedSongUrl = relativePath;
+      return normalizedMUrl !== normalizedSongUrl;
+    });
+
+    // Vérifie qu'il reste au moins un média
+    if (profile.media.length === 0) {
+      return res.status(400).json({ message: 'Vous devez avoir au moins un fichier audio' });
+    }
+
+    profile.updatedAt = new Date();
+    await profile.save();
+
+    res.json({
+      success: true,
+      message: 'Fichier audio supprimé avec succès',
+      media: profile.media
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Erreur lors de la suppression du fichier audio', 
+      error: error.message 
+    });
+  }
+};
+

@@ -17,7 +17,7 @@ connectDB();
 // Middleware CORS personnalisé : permet l'accès public aux fichiers statiques
 // et l'accès avec credentials pour les routes API
 app.use((req, res, next) => {
-  const isStaticFile = req.path.startsWith('/profile/');
+  const isStaticFile = req.path.startsWith('/profile/') || req.path.startsWith('/song/');
   
   if (isStaticFile) {
     // Pour les fichiers statiques : accès public depuis n'importe quelle origine
@@ -55,17 +55,44 @@ const PUBLIC_FOLDER_UPLOAD = 'PUBLIC_UPLOAD';
 
 // Middleware pour servir les fichiers statiques AVANT toutes les autres routes
 // Cette route doit être définie AVANT les routes API pour éviter les conflits
+
 // Route statique pour servir les photos de profil (ACCÈS PUBLIC - pas d'authentification requise)
 // Accès via: http://localhost:3000/profile/{userId}/photo_uploads/{filename}
-const staticPath = path.join(staticDirectory, `${PUBLIC_FOLDER_UPLOAD}/profile/`);
+const staticPhotoPath = path.join(staticDirectory, `${PUBLIC_FOLDER_UPLOAD}/profile/`);
 
-
-app.use('/profile/', express.static(staticPath, {
+app.use('/profile/', express.static(staticPhotoPath, {
   // Options pour améliorer les performances avec cache
   setHeaders: (res, filePath) => {
     // Cache les images pour améliorer les performances
     if (filePath.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
       res.set('Cache-Control', 'public, max-age=31536000'); // Cache 1 an
+    }
+  }
+}));
+
+// Route statique pour servir les fichiers audio (ACCÈS PUBLIC - pas d'authentification requise)
+// Accès via: http://localhost:3000/song/{userId}/song_uploads/{filename}
+const staticSongPath = path.join(staticDirectory, `${PUBLIC_FOLDER_UPLOAD}/profile/`);
+
+app.use('/song/', express.static(staticSongPath, {
+  // Options pour améliorer les performances avec cache
+  setHeaders: (res, filePath) => {
+    // Cache les fichiers audio pour améliorer les performances
+    if (filePath.match(/\.mp3$/i)) {
+      res.set('Content-Type', 'audio/mpeg');
+      res.set('Cache-Control', 'public, max-age=31536000'); // Cache 1 an
+    } else if (filePath.match(/\.wav$/i)) {
+      res.set('Content-Type', 'audio/wav');
+      res.set('Cache-Control', 'public, max-age=31536000');
+    } else if (filePath.match(/\.ogg$/i)) {
+      res.set('Content-Type', 'audio/ogg');
+      res.set('Cache-Control', 'public, max-age=31536000');
+    } else if (filePath.match(/\.m4a$/i)) {
+      res.set('Content-Type', 'audio/mp4');
+      res.set('Cache-Control', 'public, max-age=31536000');
+    } else if (filePath.match(/\.webm$/i)) {
+      res.set('Content-Type', 'audio/webm');
+      res.set('Cache-Control', 'public, max-age=31536000');
     }
   }
 }));

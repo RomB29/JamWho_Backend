@@ -101,7 +101,7 @@ exports.getProfiles = async (req, res) => {
     // Convertit distanceCalculated de mètres en km pour la réponse
     const profilesWithDistance = profiles.map(profile => ({
       ...profile,
-      distanceCalculated: profile.distanceCalculated ? parseFloat((profile.distanceCalculated / 1000).toFixed(2)) : null, // En km avec 2 décimales
+      distanceCalculated: profile.distanceCalculated ? parseFloat((profile.distanceCalculated / 1000).toFixed(2)) : 0, // En km avec 2 décimales
       userId: {
         _id: profile.userId._id,
         username: profile.userId.username,

@@ -13,17 +13,23 @@ exports.getMatches = async (req, res) => {
     // Pour chaque match, récupère le profil de l'autre utilisateur
     const matchesWithProfiles = await Promise.all(
       matches.map(async (match) => {
-        const otherUserId = match.users.find(
+        // Trouve l'autre utilisateur (celui qui n'est pas l'utilisateur actuel)
+        const otherUser = match.users.find(
           userId => userId._id.toString() !== req.user._id.toString()
-        )._id;
+        );
 
+        // Vérifie qu'on a bien trouvé un autre utilisateur
+        if (!otherUser) {
+          console.error(`Match ${match._id} n'a pas d'autre utilisateur valide`);
+          return null;
+        }
+
+        const otherUserId = otherUser._id;
         const profile = await Profile.findOne({ userId: otherUserId });
 
         return {
           id: match._id,
-          user: match.users.find(
-            userId => userId._id.toString() !== req.user._id.toString()
-          ),
+          user: otherUser,
           profile: profile || null,
           createdAt: match.createdAt,
           lastMessageAt: match.lastMessageAt
@@ -31,7 +37,10 @@ exports.getMatches = async (req, res) => {
       })
     );
 
-    res.json(matchesWithProfiles);
+    // Filtre les matches null (en cas d'erreur)
+    const validMatches = matchesWithProfiles.filter(match => match !== null);
+
+    res.json(validMatches);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -51,17 +60,22 @@ exports.getMatch = async (req, res) => {
       return res.status(404).json({ message: 'Match non trouvé' });
     }
 
-    const otherUserId = match.users.find(
+    // Trouve l'autre utilisateur (celui qui n'est pas l'utilisateur actuel)
+    const otherUser = match.users.find(
       userId => userId._id.toString() !== req.user._id.toString()
-    )._id;
+    );
 
+    // Vérifie qu'on a bien trouvé un autre utilisateur
+    if (!otherUser) {
+      return res.status(500).json({ message: 'Match invalide : autre utilisateur non trouvé' });
+    }
+
+    const otherUserId = otherUser._id;
     const profile = await Profile.findOne({ userId: otherUserId });
 
     res.json({
       id: match._id,
-      user: match.users.find(
-        userId => userId._id.toString() !== req.user._id.toString()
-      ),
+      user: otherUser,
       profile: profile || null,
       createdAt: match.createdAt,
       lastMessageAt: match.lastMessageAt

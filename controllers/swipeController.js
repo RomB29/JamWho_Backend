@@ -208,8 +208,17 @@ exports.removeLike = async (req, res) => {
       return res.status(400).json({ message: 'Profil non liké' });
     }
     currentProfile.likedUsers = currentProfile.likedUsers.filter(id => id.toString() !== targetUserId.toString());
+    const matchToDelete = await Match.findOne({ users: { $all: [currentProfile.userId.toString(), targetUserId] } });
+    if (matchToDelete) {
+      await Match.deleteOne({ _id: matchToDelete._id });
+    }
+    
     await currentProfile.save();
-    res.json({ message: 'Like supprimé' });
+    res.json({ 
+      success: true,
+      message: 'Like supprimé',
+      matchDeleted: !!matchToDelete // Indique si un match a été supprimé
+    });
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }

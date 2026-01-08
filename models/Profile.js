@@ -66,6 +66,10 @@ const profileSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  whoLikedMe: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   updatedAt: {
     type: Date,
     default: Date.now

@@ -153,6 +153,9 @@ exports.likeProfile = async (req, res) => {
 
     // Vérifie si c'est un match (l'autre utilisateur a aussi liké)
     const targetProfile = await Profile.findOne({ userId: targetUserIdObj });
+    targetProfile.whoLikedMe.push(req.user._id);
+    await targetProfile.save();
+
     let match = null;
     let isMatch = false;
 
@@ -212,7 +215,10 @@ exports.removeLike = async (req, res) => {
     if (matchToDelete) {
       await Match.deleteOne({ _id: matchToDelete._id });
     }
+    const targetProfile = await Profile.findOne({ userId: targetUserId });
+    targetProfile.whoLikedMe = targetProfile.whoLikedMe.filter(id => id.toString() !== currentProfile.userId.toString());
     
+    await targetProfile.save();
     await currentProfile.save();
     res.json({ 
       success: true,
@@ -243,6 +249,31 @@ exports.getLikedProfiles = async (req, res) => {
     // Récupère les profils des utilisateurs likés
     const profiles = await Profile.find({
       userId: { $in: likedUserIds }
+    }).populate('userId', 'username email');
+
+    res.json(profiles);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+exports.getWhoLikedMe = async (req, res) => {
+  try {
+    const currentProfile = await Profile.findOne({ userId: req.user._id });
+    if (!currentProfile) {
+      return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+
+    // Récupère les IDs des utilisateurs qui ont liké le profil actuel
+    const whoLikedMeIds = currentProfile.whoLikedMe || [];
+
+    if (whoLikedMeIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Récupère les profils des utilisateurs qui ont liké l'utilisateur actuel
+    const profiles = await Profile.find({
+      userId: { $in: whoLikedMeIds }
     }).populate('userId', 'username email');
 
     res.json(profiles);

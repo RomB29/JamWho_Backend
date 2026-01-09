@@ -104,6 +104,7 @@ app.use('/api/profile', require('./routes/profile'));
 app.use('/api/swipe', require('./routes/swipe'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/messages', require('./routes/messages'));
+app.use('/api/premium', require('./routes/premium'));
 
 // Route de test
 app.get('/api/health', (req, res) => {

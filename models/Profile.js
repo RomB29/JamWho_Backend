@@ -70,6 +70,33 @@ const profileSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  // Tracking des limites pour utilisateurs non-premium
+  dailySwipes: {
+    count: {
+      type: Number,
+      default: 0
+    },
+    date: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  dailyMessages: {
+    profiles: [{
+      profileId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      firstMessageAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    resetDate: {
+      type: Date,
+      default: Date.now
+    }
+  },
   updatedAt: {
     type: Date,
     default: Date.now

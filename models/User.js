@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema({
     sparse: true, // Permet plusieurs null mais un seul non-null
     unique: true
   },
+  isPremium: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

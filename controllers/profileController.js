@@ -33,10 +33,18 @@ exports.getProfile = async (req, res) => {
       return res.status(404).json({ message: 'Profil non trouvé' });
     }
 
+    // Récupère les informations de l'utilisateur (pour isPremium)
+    const user = await User.findById(req.user._id).select('isPremium');
+
     // Transforme les URLs de photos en URLs complètes
     const profileObj = profile.toObject();
     if (profileObj.photos) {
       profileObj.photos = transformPhotoUrls(profileObj.photos);
+    }
+
+    // Ajoute les informations premium au profil
+    if (profileObj.userId && user) {
+      profileObj.userId.isPremium = user.isPremium || false;
     }
 
     res.json(profileObj);

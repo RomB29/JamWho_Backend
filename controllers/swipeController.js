@@ -1,6 +1,32 @@
 const mongoose = require('mongoose');
 const Match = require('../models/Match');
 const Profile = require('../models/Profile');
+const User = require('../models/User');
+
+// Helper function pour vérifier et réinitialiser les limites journalières
+function resetDailyLimitsIfNeeded(profile) {
+  const now = new Date();
+  const lastSwipeDate = profile.dailySwipes?.date ? new Date(profile.dailySwipes.date) : null;
+  const lastMessageDate = profile.dailyMessages?.resetDate ? new Date(profile.dailyMessages.resetDate) : null;
+  
+  // Réinitialise les swipes si c'est un nouveau jour
+  if (!lastSwipeDate || lastSwipeDate.toDateString() !== now.toDateString()) {
+    profile.dailySwipes = {
+      count: 0,
+      date: now
+    };
+  }
+  
+  // Réinitialise les messages si 24h se sont écoulées
+  if (!lastMessageDate || (now - lastMessageDate) >= 24 * 60 * 60 * 1000) {
+    profile.dailyMessages = {
+      profiles: [],
+      resetDate: now
+    };
+  }
+  
+  return profile;
+}
 
 // Charge les profils disponibles pour le swipe
 exports.getProfiles = async (req, res) => {
@@ -128,11 +154,34 @@ exports.likeProfile = async (req, res) => {
       return res.status(400).json({ message: 'Vous ne pouvez pas vous liker vous-même' });
     }
 
+    // Récupère l'utilisateur pour vérifier le statut premium
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
     // Récupère le profil de l'utilisateur actuel
     const currentProfile = await Profile.findOne({ userId: req.user._id });
 
     if (!currentProfile) {
       return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+
+    // Vérifie les limites pour les utilisateurs non-premium
+    if (!user.isPremium) {
+      // Réinitialise les limites si nécessaire
+      resetDailyLimitsIfNeeded(currentProfile);
+
+      // Vérifie la limite de swipes journalières (20 max pour non-premium)
+      const SWIPE_LIMIT = 20;
+      if (currentProfile.dailySwipes.count >= SWIPE_LIMIT) {
+        return res.status(403).json({ 
+          message: `Limite de swipes atteinte (${SWIPE_LIMIT} par jour). Passez Premium pour swiper sans limite !`,
+          limit: SWIPE_LIMIT,
+          used: currentProfile.dailySwipes.count,
+          requiresPremium: true
+        });
+      }
     }
 
     // Convertit targetUserId en ObjectId pour la comparaison
@@ -149,6 +198,12 @@ exports.likeProfile = async (req, res) => {
       currentProfile.likedUsers = [];
     }
     currentProfile.likedUsers.push(targetUserIdObj);
+    
+    // Incrémente le compteur de swipes pour les non-premium
+    if (!user.isPremium) {
+      currentProfile.dailySwipes.count = (currentProfile.dailySwipes.count || 0) + 1;
+    }
+    
     await currentProfile.save();
 
     // Vérifie si c'est un match (l'autre utilisateur a aussi liké)

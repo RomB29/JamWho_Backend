@@ -149,6 +149,13 @@ exports.sendMessage = async (req, res) => {
       await match.save();
     }
 
+    // Incrémente le compteur messageUnread du destinataire
+    const receiverUser = await User.findById(receiverId);
+    if (receiverUser) {
+      receiverUser.messageUnread = (receiverUser.messageUnread || 0) + 1;
+      await receiverUser.save();
+    }
+
     await message.populate('senderId', 'username');
     await message.populate('receiverId', 'username');
 
@@ -176,6 +183,13 @@ exports.markAsRead = async (req, res) => {
       return res.status(403).json({ message: 'Accès non autorisé à cette conversation' });
     }
 
+    // Compte les messages non lus avant de les marquer comme lus
+    const unreadCount = await Message.countDocuments({
+      conversationId,
+      receiverId: req.user._id,
+      read: false
+    });
+
     // Marque tous les messages non lus comme lus
     await Message.updateMany(
       {
@@ -188,6 +202,18 @@ exports.markAsRead = async (req, res) => {
         readAt: new Date()
       }
     );
+
+    // Met à jour le compteur global messageUnread
+    const user = await User.findById(req.user._id);
+    if (user) {
+      // Recalcule le nombre total de messages non lus
+      const totalUnread = await Message.countDocuments({
+        receiverId: req.user._id,
+        read: false
+      });
+      user.messageUnread = totalUnread;
+      await user.save();
+    }
 
     res.json({ success: true });
   } catch (error) {

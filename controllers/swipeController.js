@@ -211,6 +211,13 @@ exports.likeProfile = async (req, res) => {
     targetProfile.whoLikedMe.push(req.user._id);
     await targetProfile.save();
 
+    // Incrémente le compteur newLike de l'utilisateur cible
+    const targetUser = await User.findById(targetUserIdObj);
+    if (targetUser) {
+      targetUser.newLike = (targetUser.newLike || 0) + 1;
+      await targetUser.save();
+    }
+
     let match = null;
     let isMatch = false;
 

@@ -33,6 +33,14 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  newLike: {
+    type: Number,
+    default: 0
+  },
+  messageUnread: {
+    type: Number,
+    default: 0
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -2,6 +2,22 @@ const Message = require('../models/Message');
 const Match = require('../models/Match');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
+const mongoose = require('mongoose');
+
+// Helper function pour générer un conversationId unique entre deux utilisateurs
+// Le conversationId est déterministe : il sera toujours le même pour deux utilisateurs donnés
+function generateConversationId(userId1, userId2) {
+  // Convertit en string pour la comparaison
+  const id1 = userId1.toString();
+  const id2 = userId2.toString();
+  
+  // Trie les IDs pour garantir que le conversationId est toujours le même
+  // peu importe l'ordre des paramètres
+  const sortedIds = [id1, id2].sort();
+  
+  // Génère le conversationId en concaténant les IDs triés
+  return `${sortedIds[0]}_${sortedIds[1]}`;
+}
 
 // Helper function pour vérifier et réinitialiser les limites journalières
 function resetDailyLimitsIfNeeded(profile) {
@@ -19,22 +35,26 @@ function resetDailyLimitsIfNeeded(profile) {
   return profile;
 }
 
-// Récupère les messages d'un match
+// Récupère les messages d'une conversation
 exports.getMessages = async (req, res) => {
   try {
-    const { matchId } = req.params;
+    const { conversationId } = req.params;
 
-    // Vérifie que l'utilisateur fait partie du match
-    const match = await Match.findOne({
-      _id: matchId,
-      users: req.user._id
-    });
-
-    if (!match) {
-      return res.status(404).json({ message: 'Match non trouvé' });
+    if (!conversationId) {
+      return res.status(400).json({ message: 'conversationId requis' });
     }
 
-    const messages = await Message.find({ matchId })
+    // Vérifie que l'utilisateur fait partie de la conversation
+    // Le conversationId contient les deux IDs triés, on vérifie que req.user._id est dedans
+    const userIdStr = req.user._id.toString();
+    const conversationParts = conversationId.split('_');
+    
+    if (conversationParts.length !== 2 || 
+        !conversationParts.includes(userIdStr)) {
+      return res.status(403).json({ message: 'Accès non autorisé à cette conversation' });
+    }
+
+    const messages = await Message.find({ conversationId })
       .sort({ createdAt: 1 })
       .populate('senderId', 'username')
       .populate('receiverId', 'username');
@@ -48,26 +68,29 @@ exports.getMessages = async (req, res) => {
 // Envoie un message
 exports.sendMessage = async (req, res) => {
   try {
-    const { matchId, content } = req.body;
+    const { conversationId, content } = req.body;
 
-    if (!matchId || !content || content.trim() === '') {
-      return res.status(400).json({ message: 'matchId et content requis' });
+    if (!conversationId || !content || content.trim() === '') {
+      return res.status(400).json({ message: 'conversationId et content requis' });
     }
 
-    // Vérifie que l'utilisateur fait partie du match
+    // Vérifie que l'utilisateur fait partie de la conversation
+    const userIdStr = req.user._id.toString();
+    const conversationParts = conversationId.split('_');
+    
+    if (conversationParts.length !== 2 || 
+        !conversationParts.includes(userIdStr)) {
+      return res.status(403).json({ message: 'Accès non autorisé à cette conversation' });
+    }
+
+    // Trouve l'autre utilisateur (celui qui n'est pas l'utilisateur actuel)
+    const receiverIdStr = conversationParts.find(id => id !== userIdStr);
+    const receiverId = new mongoose.Types.ObjectId(receiverIdStr);
+    
+    // Vérifie que le match existe (pour compatibilité)
     const match = await Match.findOne({
-      _id: matchId,
-      users: req.user._id
+      users: { $all: [req.user._id, receiverId] }
     });
-
-    if (!match) {
-      return res.status(404).json({ message: 'Match non trouvé' });
-    }
-
-    // Trouve l'autre utilisateur
-    const receiverId = match.users.find(
-      userId => userId.toString() !== req.user._id.toString()
-    );
 
     // Vérifie les limites pour les utilisateurs non-premium
     const user = await User.findById(req.user._id);
@@ -110,18 +133,21 @@ exports.sendMessage = async (req, res) => {
       }
     }
 
-    // Crée le message
+    // Crée le message avec conversationId
     const message = new Message({
-      matchId,
+      conversationId,
+      matchId: match ? match._id : null, // Gardé pour compatibilité
       senderId: req.user._id,
       receiverId,
       content: content.trim()
     });
     await message.save();
 
-    // Met à jour lastMessageAt du match
-    match.lastMessageAt = new Date();
-    await match.save();
+    // Met à jour lastMessageAt du match si il existe
+    if (match) {
+      match.lastMessageAt = new Date();
+      await match.save();
+    }
 
     await message.populate('senderId', 'username');
     await message.populate('receiverId', 'username');
@@ -135,22 +161,25 @@ exports.sendMessage = async (req, res) => {
 // Marque les messages comme lus
 exports.markAsRead = async (req, res) => {
   try {
-    const { matchId } = req.params;
+    const { conversationId } = req.params;
 
-    // Vérifie que l'utilisateur fait partie du match
-    const match = await Match.findOne({
-      _id: matchId,
-      users: req.user._id
-    });
+    if (!conversationId) {
+      return res.status(400).json({ message: 'conversationId requis' });
+    }
 
-    if (!match) {
-      return res.status(404).json({ message: 'Match non trouvé' });
+    // Vérifie que l'utilisateur fait partie de la conversation
+    const userIdStr = req.user._id.toString();
+    const conversationParts = conversationId.split('_');
+    
+    if (conversationParts.length !== 2 || 
+        !conversationParts.includes(userIdStr)) {
+      return res.status(403).json({ message: 'Accès non autorisé à cette conversation' });
     }
 
     // Marque tous les messages non lus comme lus
     await Message.updateMany(
       {
-        matchId,
+        conversationId,
         receiverId: req.user._id,
         read: false
       },
@@ -161,6 +190,86 @@ exports.markAsRead = async (req, res) => {
     );
 
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+// Récupère toutes les conversations de l'utilisateur avec le dernier message et le nombre de messages non lus
+exports.getConversations = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Récupère tous les matches de l'utilisateur
+    const matches = await Match.find({
+      users: userId
+    })
+    .sort({ lastMessageAt: -1 })
+    .populate('users', 'username email');
+
+    // Pour chaque match, récupère le dernier message et le nombre de messages non lus
+    const conversations = await Promise.all(
+      matches.map(async (match) => {
+        // Trouve l'autre utilisateur
+        const otherUser = match.users.find(
+          user => user._id.toString() !== userId.toString()
+        );
+
+        if (!otherUser) {
+          return null;
+        }
+
+        // Récupère le profil de l'autre utilisateur
+        const profile = await Profile.findOne({ userId: otherUser._id });
+
+        // Génère le conversationId pour cette conversation
+        const conversationId = generateConversationId(userId, otherUser._id);
+
+        // Récupère le dernier message
+        const lastMessage = await Message.findOne({ conversationId })
+          .sort({ createdAt: -1 })
+          .populate('senderId', 'username');
+
+        // Compte les messages non lus
+        const unreadCount = await Message.countDocuments({
+          conversationId,
+          receiverId: userId,
+          read: false
+        });
+
+        return {
+          conversationId,
+          matchId: match._id.toString(), // Gardé pour compatibilité
+          otherUser: {
+            id: otherUser._id.toString(),
+            username: otherUser.username,
+            email: otherUser.email
+          },
+          profile: profile ? {
+            id: profile._id.toString(),
+            pseudo: profile.pseudo,
+            photos: profile.photos || [],
+            description: profile.description
+          } : null,
+          lastMessage: lastMessage ? {
+            id: lastMessage._id.toString(),
+            content: lastMessage.content,
+            senderId: lastMessage.senderId._id ? lastMessage.senderId._id.toString() : lastMessage.senderId.toString(),
+            senderUsername: lastMessage.senderId.username || 'Utilisateur',
+            createdAt: lastMessage.createdAt,
+            read: lastMessage.read
+          } : null,
+          unreadCount,
+          createdAt: match.createdAt,
+          lastMessageAt: match.lastMessageAt
+        };
+      })
+    );
+
+    // Filtre les conversations null
+    const validConversations = conversations.filter(conv => conv !== null);
+
+    res.json(validConversations);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }

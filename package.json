@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "migrate:location": "node scripts/migrate-location.js",
     "migrate:premium": "node scripts/migrate-premium.js",
+    "migrate:conversationId": "node scripts/migrate-conversationId.js",
     "debug:profiles": "node scripts/debug-profiles.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

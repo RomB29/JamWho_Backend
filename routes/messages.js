@@ -6,9 +6,10 @@ const auth = require('../middleware/auth');
 // Toutes les routes nécessitent une authentification
 router.use(auth);
 
-router.get('/:matchId', messageController.getMessages);
+router.get('/conversations', messageController.getConversations);
+router.get('/:conversationId', messageController.getMessages);
 router.post('/', messageController.sendMessage);
-router.put('/:matchId/read', messageController.markAsRead);
+router.put('/:conversationId/read', messageController.markAsRead);
 
 module.exports = router;
 

@@ -261,6 +261,53 @@ exports.deletePhoto = async (req, res) => {
       }
     }
 
+    if (photoUrl.includes('googleusercontent.com')) {
+
+      const normalizeGoogleUrl = (url) => {
+        try {
+          const urlObj = new URL(url);
+          // Retourne l'URL sans les paramètres de requête
+          return `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
+        } catch (e) {
+          return url.split('?')[0]; // Enlève les paramètres manuellement
+        }
+      };
+      
+      const normalizedPhotoUrl = normalizeGoogleUrl(photoUrl);
+      
+      // Retire la photo de la liste du profil en comparant les URLs normalisées
+      const initialLength = profile.photos.length;
+      profile.photos = profile.photos.filter(p => {
+        if (p.includes('googleusercontent.com')) {
+          return normalizeGoogleUrl(p) !== normalizedPhotoUrl;
+        }
+        // Pour les autres photos, comparaison exacte
+        return p !== photoUrl;
+      });
+      
+      // Vérifie que la photo a bien été trouvée et supprimée
+      if (profile.photos.length === initialLength) {
+        return res.status(404).json({ message: 'Photo non trouvée dans le profil' });
+      }
+      
+      // Vérifie qu'il reste au moins une photo
+      if (profile.photos.length === 0) {
+        return res.status(400).json({ message: 'Vous devez avoir au moins une photo' });
+      }
+      
+      profile.updatedAt = new Date();
+      await profile.save();
+      
+      // Transforme les URLs de photos en URLs complètes avant de retourner
+      const photosUrls = transformPhotoUrls(profile.photos);
+      
+      return res.json({
+        success: true,
+        message: 'Photo supprimée avec succès',
+        photos: photosUrls
+      });
+    }
+
     // Vérifie que le chemin correspond au format attendu
     const pathMatch = relativePath.match(/\/profile\/([^\/]+)\/photo_uploads\/(.+)$/);
     if (!pathMatch) {

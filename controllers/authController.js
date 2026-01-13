@@ -144,11 +144,24 @@ exports.login = async (req, res) => {
 // Connexion avec Google
 exports.loginWithGoogle = async (req, res) => {
   try {
-    const { googleId, email, name } = req.body;
+    const { googleId, email, name, picture, accessToken } = req.body;
 
     if (!googleId || !email) {
       return res.status(400).json({ message: 'GoogleId et email requis' });
     }
+
+    // TODO: Optionnel - Vérifier le token Google côté serveur pour plus de sécurité
+    // if (accessToken) {
+    //   const axios = require('axios');
+    //   try {
+    //     const response = await axios.get(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${accessToken}`);
+    //     if (response.data.id !== googleId) {
+    //       return res.status(401).json({ message: 'Token Google invalide' });
+    //     }
+    //   } catch (error) {
+    //     return res.status(401).json({ message: 'Erreur lors de la vérification du token Google' });
+    //   }
+    // }
 
     // Cherche un utilisateur existant avec ce googleId
     let user = await User.findOne({ googleId });
@@ -162,19 +175,37 @@ exports.loginWithGoogle = async (req, res) => {
         user.googleId = googleId;
         await user.save();
       } else {
+        // Génère un username unique si nécessaire
+        let username = name || email.split('@')[0];
+        // Nettoie le username (enlève les caractères spéciaux)
+        username = username.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+        
+        // Vérifie si le username existe déjà
+        let existingUser = await User.findOne({ username });
+        let counter = 1;
+        const originalUsername = username;
+        while (existingUser) {
+          username = `${originalUsername}${counter}`;
+          existingUser = await User.findOne({ username });
+          counter++;
+        }
+
         // Crée un nouvel utilisateur
         user = new User({
-          username: name || email.split('@')[0],
+          username,
           email: email.toLowerCase(),
           googleId
         });
         await user.save();
 
+        // Détermine la photo de profil (utilise la photo Google si disponible)
+        const defaultPhoto = picture || 'https://i.pravatar.cc/300?img=12';
+
         // Crée un profil par défaut
         const profile = new Profile({
           userId: user._id,
           pseudo: name || user.username,
-          photos: ['https://i.pravatar.cc/300?img=12'],
+          photos: [defaultPhoto],
           description: '',
           instruments: [],
           styles: [],
@@ -182,6 +213,15 @@ exports.loginWithGoogle = async (req, res) => {
           media: []
         });
         await profile.save();
+      }
+    } else {
+      // Si l'utilisateur existe déjà, met à jour le profil avec la photo Google si fournie
+      if (picture) {
+        const profile = await Profile.findOne({ userId: user._id });
+        if (profile && (!profile.photos || profile.photos.length === 0 || profile.photos[0] === 'https://i.pravatar.cc/300?img=12')) {
+          profile.photos[0] = picture;
+          await profile.save();
+        }
       }
     }
 

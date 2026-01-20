@@ -28,6 +28,17 @@ const profileSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  age: {
+    type: Number,
+    required: true,
+    min: 18,
+    max: 100
+  },
+  sexe: {
+    type: String,
+    enum: ['homme', 'femme', 'autre'],
+    required: true
+  },
   photos: [{
     type: String,
     required: true
@@ -125,4 +136,3 @@ profileSchema.set('toJSON', { virtuals: true });
 profileSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Profile', profileSchema);
-

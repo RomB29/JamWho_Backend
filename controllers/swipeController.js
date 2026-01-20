@@ -105,6 +105,8 @@ exports.getProfiles = async (req, res) => {
       {
         $project: {
           pseudo: 1,
+          age: 1,
+          sexe: 1,
           photos: 1,
           description: 1,
           instruments: 1,
@@ -115,7 +117,7 @@ exports.getProfiles = async (req, res) => {
           likedUsers: 1,
           distanceCalculated: 1, // Distance en mètres
           'userId._id': 1,
-          'userId.pseudo': 1,
+          'userId.username': 1,
           'userId.email': 1
         }
       },

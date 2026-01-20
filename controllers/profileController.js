@@ -58,6 +58,8 @@ exports.updateProfile = async (req, res) => {
   try {
     const {
       pseudo,
+      age,
+      sexe,
       photos,
       description,
       instruments,
@@ -74,6 +76,8 @@ exports.updateProfile = async (req, res) => {
       profile = new Profile({
         userId: req.user._id,
         pseudo: pseudo || req.user.username,
+        age: age || 18, // Par défaut 18 si non fourni
+        sexe: sexe || 'autre', // Par défaut 'autre' si non fourni
         photos: photos || ['https://i.pravatar.cc/300?img=12'],
         description: description || '',
         instruments: instruments || [],
@@ -84,6 +88,21 @@ exports.updateProfile = async (req, res) => {
     } else {
       // Met à jour le profil
       if (pseudo !== undefined) profile.pseudo = pseudo;
+      if (age !== undefined) {
+        const ageNum = parseInt(age);
+        if (!isNaN(ageNum) && ageNum >= 18 && ageNum <= 100) {
+          profile.age = ageNum;
+        } else {
+          return res.status(400).json({ message: 'L\'âge doit être entre 18 et 100 ans' });
+        }
+      }
+      if (sexe !== undefined) {
+        if (['homme', 'femme', 'autre'].includes(sexe)) {
+          profile.sexe = sexe;
+        } else {
+          return res.status(400).json({ message: 'Le sexe doit être "homme", "femme" ou "autre"' });
+        }
+      }
       if (photos !== undefined) profile.photos = photos;
       if (description !== undefined) profile.description = description;
       if (instruments !== undefined) profile.instruments = instruments;

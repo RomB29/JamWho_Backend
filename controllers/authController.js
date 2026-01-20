@@ -36,7 +36,7 @@ exports.checkUserExists = async (req, res) => {
 // Inscription
 exports.register = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, age, sexe } = req.body;
 
     // Vérifie si l'utilisateur existe déjà
     const existingUser = await User.findOne({
@@ -53,6 +53,23 @@ exports.register = async (req, res) => {
       });
     }
 
+    // Valide l'âge si fourni
+    if (age !== undefined) {
+      const ageNum = parseInt(age);
+      if (isNaN(ageNum) || ageNum < 18 || ageNum > 100) {
+        return res.status(400).json({ 
+          message: 'L\'âge doit être entre 18 et 100 ans' 
+        });
+      }
+    }
+
+    // Valide le sexe si fourni
+    if (sexe !== undefined && !['homme', 'femme', 'autre'].includes(sexe)) {
+      return res.status(400).json({ 
+        message: 'Le sexe doit être "homme", "femme" ou "autre"' 
+      });
+    }
+
     // Crée l'utilisateur
     const user = new User({
       username,
@@ -62,8 +79,8 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    // Crée un profil par défaut
-    const profile = new Profile({
+    // Crée un profil avec les informations fournies
+    const profileData = {
       userId: user._id,
       pseudo: username,
       photos: ['https://i.pravatar.cc/300?img=12'],
@@ -72,7 +89,17 @@ exports.register = async (req, res) => {
       styles: [],
       maxDistance: 50,
       media: []
-    });
+    };
+
+    // Ajoute l'âge et le sexe si fournis (sinon, ils seront requis et échoueront)
+    if (age !== undefined) {
+      profileData.age = parseInt(age);
+    }
+    if (sexe !== undefined) {
+      profileData.sexe = sexe;
+    }
+
+    const profile = new Profile(profileData);
     await profile.save();
 
     // Génère le token
@@ -202,9 +229,12 @@ exports.loginWithGoogle = async (req, res) => {
         const defaultPhoto = picture || 'https://i.pravatar.cc/300?img=12';
 
         // Crée un profil par défaut
+        // Note: age et sexe sont requis - valeurs par défaut (l'utilisateur devra les modifier dans son profil)
         const profile = new Profile({
           userId: user._id,
           pseudo: name || user.username,
+          age: 18, // Valeur par défaut (l'utilisateur devra le modifier dans son profil)
+          sexe: 'autre', // Valeur par défaut (l'utilisateur devra le modifier dans son profil)
           photos: [defaultPhoto],
           description: '',
           instruments: [],

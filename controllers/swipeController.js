@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Match = require('../models/Match');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
-
+const { SWIPE_LIMIT } = require('../config/constants');
 // Helper function pour vérifier et réinitialiser les limites journalières
 function resetDailyLimitsIfNeeded(profile) {
   const now = new Date();
@@ -172,8 +172,7 @@ exports.likeProfile = async (req, res) => {
       // Réinitialise les limites si nécessaire
       resetDailyLimitsIfNeeded(currentProfile);
 
-      // Vérifie la limite de swipes journalières (20 max pour non-premium)
-      const SWIPE_LIMIT = 20;
+      // Vérifie la limite de swipes journalières (2 max pour non-premium)
       if (currentProfile.dailySwipes.count >= SWIPE_LIMIT) {
         return res.status(403).json({ 
           message: `Limite de swipes atteinte (${SWIPE_LIMIT} par jour). Passez Premium pour swiper sans limite !`,

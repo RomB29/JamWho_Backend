@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const Profile = require('../models/Profile');
-
+const { SWIPE_LIMIT, MESSAGE_PROFILE_LIMIT } = require('../config/constants');
 // Récupère les informations premium et les limites de l'utilisateur
 exports.getPremiumInfo = async (req, res) => {
   try {
@@ -41,7 +41,6 @@ exports.getPremiumInfo = async (req, res) => {
     }
 
     // Définit les limites selon le statut premium
-    const SWIPE_LIMIT = 20;
     const MESSAGE_PROFILE_LIMIT = 2;
 
     // Calcule les statistiques
@@ -126,8 +125,6 @@ exports.getLimits = async (req, res) => {
     }
 
     // Définit les limites selon le statut premium
-    const SWIPE_LIMIT = 20;
-    const MESSAGE_PROFILE_LIMIT = 2;
 
     // Calcule les statistiques
     const swipeCount = profile.dailySwipes?.count || 0;

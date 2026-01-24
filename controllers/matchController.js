@@ -85,3 +85,54 @@ exports.getMatch = async (req, res) => {
   }
 };
 
+// Retire un match (unmatch)
+exports.removeMatch = async (req, res) => {
+  try {
+    const { matchId } = req.body;
+    
+    if (!matchId) {
+      return res.status(400).json({ message: 'matchId requis' });
+    }
+
+    // Vérifie que le match existe et appartient à l'utilisateur
+    const match = await Match.findOne({
+      _id: matchId,
+      users: req.user._id
+    });
+
+    if (!match) {
+      return res.status(404).json({ message: 'Match non trouvé' });
+    }
+
+    // Trouve l'autre utilisateur
+    const otherUserId = match.users.find(
+      userId => userId.toString() !== req.user._id.toString()
+    );
+
+    if (!otherUserId) {
+      return res.status(500).json({ message: 'Match invalide : autre utilisateur non trouvé' });
+    }
+
+    // Récupère les profils des deux utilisateurs
+    const currentProfile = await Profile.findOne({ userId: req.user._id });
+    const otherProfile = await Profile.findOne({ userId: otherUserId });
+
+    if (!currentProfile || !otherProfile) {
+      return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+
+    // Supprime le match
+    await Match.deleteOne({ _id: matchId });
+    await Profile.updateOne(
+      { userId: req.user._id },
+      { $pull: { likedUsers: otherUserId } }
+    )
+    res.json({
+      success: true,
+      message: 'Match retiré avec succès'
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+

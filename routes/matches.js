@@ -8,6 +8,7 @@ router.use(auth);
 
 // Route spécifique doit être définie AVANT la route paramétrée
 router.get('/get-matches', matchController.getMatches);
+router.post('/remove-match', matchController.removeMatch);
 router.get('/:id', matchController.getMatch);
 router.get('/', matchController.getMatches);
 // router.get('/get-match/:id', matchController.getMatch);

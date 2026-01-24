@@ -209,16 +209,7 @@ exports.likeProfile = async (req, res) => {
 
     // Vérifie si c'est un match (l'autre utilisateur a aussi liké)
     const targetProfile = await Profile.findOne({ userId: targetUserIdObj });
-    targetProfile.whoLikedMe.push(req.user._id);
-    await targetProfile.save();
-
-    // Incrémente le compteur newLike de l'utilisateur cible
-    const targetUser = await User.findById(targetUserIdObj);
-    if (targetUser) {
-      targetUser.newLike = (targetUser.newLike || 0) + 1;
-      await targetUser.save();
-    }
-
+    
     let match = null;
     let isMatch = false;
 
@@ -240,6 +231,45 @@ exports.likeProfile = async (req, res) => {
           match = existingMatch;
         }
         isMatch = true;
+
+        // ⭐ NOUVELLE LOGIQUE : Retirer les likes des deux utilisateurs lors d'un match
+        // 1. Retirer le like de l'utilisateur actuel vers l'utilisateur cible (de likedUsers)
+        currentProfile.likedUsers = currentProfile.likedUsers.filter(
+          id => id.toString() !== targetUserIdObj.toString()
+        );
+        
+        // 2. Retirer le like de l'utilisateur cible vers l'utilisateur actuel (de likedUsers)
+        targetProfile.likedUsers = targetProfile.likedUsers.filter(
+          id => id.toString() !== req.user._id.toString()
+        );
+        
+        // 3. Retirer de whoLikedMe de l'utilisateur actuel
+        currentProfile.whoLikedMe = (currentProfile.whoLikedMe || []).filter(
+          id => id.toString() !== targetUserIdObj.toString()
+        );
+        
+        // 4. Retirer de whoLikedMe de l'utilisateur cible
+        targetProfile.whoLikedMe = (targetProfile.whoLikedMe || []).filter(
+          id => id.toString() !== req.user._id.toString()
+        );
+        
+        // Sauvegarder les deux profils après les modifications
+        await currentProfile.save();
+        await targetProfile.save();
+      } else {
+        // Ce n'est pas un match, on ajoute juste à whoLikedMe de l'utilisateur cible
+        if (!targetProfile.whoLikedMe) {
+          targetProfile.whoLikedMe = [];
+        }
+        targetProfile.whoLikedMe.push(req.user._id);
+        await targetProfile.save();
+
+        // Incrémente le compteur newLike de l'utilisateur cible
+        const targetUser = await User.findById(targetUserIdObj);
+        if (targetUser) {
+          targetUser.newLike = (targetUser.newLike || 0) + 1;
+          await targetUser.save();
+        }
       }
     }
 
@@ -302,14 +332,28 @@ exports.getLikedProfiles = async (req, res) => {
       return res.status(404).json({ message: 'Profil non trouvé' });
     }
 
-    // Récupère les IDs des utilisateurs likés
-    const likedUserIds = currentProfile.likedUsers || [];
+    // Récupère tous les matches de l'utilisateur
+    const matches = await Match.find({
+      users: req.user._id
+    });
+    
+    // Extrait les IDs des utilisateurs avec qui il y a un match
+    const matchUserIds = matches.flatMap(match => 
+      match.users
+        .filter(id => id.toString() !== req.user._id.toString())
+        .map(id => id.toString())
+    );
+
+    // Récupère les IDs des utilisateurs likés (exclure les matches)
+    const likedUserIds = (currentProfile.likedUsers || [])
+      .map(id => id.toString())
+      .filter(id => !matchUserIds.includes(id)); // Exclure les utilisateurs avec qui il y a un match
     
     if (likedUserIds.length === 0) {
       return res.json([]);
     }
 
-    // Récupère les profils des utilisateurs likés
+    // Récupère les profils des utilisateurs likés (qui ne sont pas des matches)
     const profiles = await Profile.find({
       userId: { $in: likedUserIds }
     }).populate('userId', 'username email');
@@ -327,14 +371,28 @@ exports.getWhoLikedMe = async (req, res) => {
       return res.status(404).json({ message: 'Profil non trouvé' });
     }
 
+    // Récupère tous les matches de l'utilisateur
+    const matches = await Match.find({
+      users: req.user._id
+    });
+    
+    // Extrait les IDs des utilisateurs avec qui il y a un match
+    const matchUserIds = matches.flatMap(match => 
+      match.users
+        .filter(id => id.toString() !== req.user._id.toString())
+        .map(id => id.toString())
+    );
+
     // Récupère les IDs des utilisateurs qui ont liké le profil actuel
-    const whoLikedMeIds = currentProfile.whoLikedMe || [];
+    const whoLikedMeIds = (currentProfile.whoLikedMe || [])
+      .map(id => id.toString())
+      .filter(id => !matchUserIds.includes(id)); // Exclure les utilisateurs avec qui il y a un match
 
     if (whoLikedMeIds.length === 0) {
       return res.json([]);
     }
 
-    // Récupère les profils des utilisateurs qui ont liké l'utilisateur actuel
+    // Récupère les profils des utilisateurs qui ont liké l'utilisateur actuel (qui ne sont pas des matches)
     const profiles = await Profile.find({
       userId: { $in: whoLikedMeIds }
     }).populate('userId', 'username email');
@@ -344,5 +402,3 @@ exports.getWhoLikedMe = async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
-
-

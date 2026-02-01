@@ -40,6 +40,7 @@ exports.getProfiles = async (req, res) => {
     // Récupère les IDs des profils déjà likés (depuis likedUsers)
     const likedUserIds = currentProfile.likedUsers || [];
 
+    const blockedUserIds = currentProfile.blockedUsers || [];
     // Récupère maxDistance (par défaut 50 km)
     const maxDistance = currentProfile.maxDistance || 50;
 
@@ -69,7 +70,7 @@ exports.getProfiles = async (req, res) => {
     const rad = parseFloat(maxDistance);
 
     // Convertit les IDs en ObjectId pour la requête
-    const excludedUserIds = [req.user._id, ...likedUserIds]
+    const excludedUserIds = [req.user._id, ...likedUserIds, ...blockedUserIds]
 
     // Utilise $geoNear avec aggregate pour une meilleure performance
     const profiles = await Profile.aggregate([

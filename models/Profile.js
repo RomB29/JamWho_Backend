@@ -108,6 +108,10 @@ const profileSchema = new mongoose.Schema({
       default: Date.now
     }
   },
+  blockedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   updatedAt: {
     type: Date,
     default: Date.now

@@ -560,3 +560,65 @@ exports.deleteSong = async (req, res) => {
   }
 };
 
+// Block user
+exports.blockUser = async (req, res) => {
+  try {
+    const { _id, username, email } = req.body.blockedUserId;
+    const targetUserId = _id;
+    if (!targetUserId) {
+      return res.status(400).json({ message: 'targetUserId requis' });
+    }
+    if (targetUserId === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Vous ne pouvez pas vous bloquer vous-même' });
+    }
+    const currentProfile = await Profile.findOne({ userId: req.user._id });
+    if (!currentProfile) {
+      return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+    if (currentProfile.blockedUsers.includes(targetUserId)) {
+      return res.status(400).json({ message: 'Utilisateur déjà bloqué' });
+    }
+    currentProfile.blockedUsers.push(targetUserId);
+    await currentProfile.save();
+    res.json({
+      success: true,
+      message: 'Utilisateur bloqué avec succès'
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Erreur lors du blocage de l\'utilisateur', 
+      error: error.message 
+    });
+  }
+};
+
+// Unblock user
+exports.unblockUser = async (req, res) => {
+  try {
+    const { targetUserId } = req.body;
+    if (!targetUserId) {
+      return res.status(400).json({ message: 'targetUserId requis' });
+    }
+    if (targetUserId === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Vous ne pouvez pas vous débloquer vous-même' });
+    }
+    const currentProfile = await Profile.findOne({ userId: req.user._id });
+    if (!currentProfile) {
+      return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+    if (!currentProfile.blockedUsers.includes(targetUserId)) {
+      return res.status(400).json({ message: 'Utilisateur non bloqué' });
+  }
+  currentProfile.blockedUsers = currentProfile.blockedUsers.filter(id => id.toString() !== targetUserId.toString());
+  await currentProfile.save();
+  res.json({
+    success: true,
+    message: 'Utilisateur débloqué avec succès'
+  });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Erreur lors du déblocage de l\'utilisateur', 
+      error: error.message 
+    });
+  }
+};

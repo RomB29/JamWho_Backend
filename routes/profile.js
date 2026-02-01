@@ -20,5 +20,9 @@ router.delete('/photo', profileController.deletePhoto);
 router.post('/song', uploadProfileSong.single('song'),profileController.uploadSong);
 router.delete('/song', profileController.deleteSong);
 
+// Block user
+router.post('/block', profileController.blockUser);
+router.delete('/block', profileController.unblockUser);
+
 module.exports = router;
 

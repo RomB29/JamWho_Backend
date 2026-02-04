@@ -33,6 +33,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  stripeCustomerId: {
+    type: String,
+    default: null
+  },
+  stripeSubscriptionId: {
+    type: String,
+    default: null
+  },
+  premiumExpiresAt: {
+    type: Date,
+    default: null
+  },
   newLike: {
     type: Number,
     default: 0
@@ -64,6 +76,25 @@ userSchema.pre('save', async function(next) {
 userSchema.methods.comparePassword = async function(candidatePassword) {
   if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+/**
+ * Synchronise le statut premium avec la date d'expiration.
+ * Si isPremium est true mais premiumExpiresAt est dépassée, passe isPremium à false
+ * et nettoie stripeSubscriptionId / premiumExpiresAt (stripeCustomerId conservé).
+ * @param {import('mongoose').Document} user - Document utilisateur (doit avoir isPremium et premiumExpiresAt chargés)
+ * @returns {Promise<boolean>} - true si l'utilisateur est premium actif, false sinon
+ */
+userSchema.statics.syncPremiumIfExpired = async function(user) {
+  if (!user || !user.isPremium) return !!user?.isPremium;
+  if (!user.premiumExpiresAt) return true; // pas de date = actif (renouvellement automatique)
+  const now = new Date();
+  if (user.premiumExpiresAt > now) return true; // pas encore expiré
+  user.isPremium = false;
+  user.stripeSubscriptionId = null;
+  user.premiumExpiresAt = null;
+  await user.save();
+  return false;
 };
 
 module.exports = mongoose.model('User', userSchema);

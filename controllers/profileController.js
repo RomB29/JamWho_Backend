@@ -34,7 +34,8 @@ exports.getProfile = async (req, res) => {
     }
 
     // Récupère les informations de l'utilisateur (pour isPremium)
-    const user = await User.findById(req.user._id).select('isPremium');
+    const user = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
+    const isPremium = user ? await User.syncPremiumIfExpired(user) : false;
 
     // Transforme les URLs de photos en URLs complètes
     const profileObj = profile.toObject();
@@ -43,8 +44,8 @@ exports.getProfile = async (req, res) => {
     }
 
     // Ajoute les informations premium au profil
-    if (profileObj.userId && user) {
-      profileObj.userId.isPremium = user.isPremium || false;
+    if (profileObj.userId) {
+      profileObj.userId.isPremium = isPremium;
     }
 
     res.json(profileObj);

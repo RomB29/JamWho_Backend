@@ -4,10 +4,13 @@ const { SWIPE_LIMIT, MESSAGE_PROFILE_LIMIT } = require('../config/constants');
 // Récupère les informations premium et les limites de l'utilisateur
 exports.getPremiumInfo = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('isPremium');
+    const user = await User.findById(req.user._id)
+      .select('isPremium stripeSubscriptionId premiumExpiresAt');
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
+    // Synchronise le premium avec la date d'expiration (passe à false si expiré)
+    const isPremium = await User.syncPremiumIfExpired(user);
 
     const profile = await Profile.findOne({ userId: req.user._id });
     if (!profile) {
@@ -49,32 +52,34 @@ exports.getPremiumInfo = async (req, res) => {
 
     // Calcule le temps restant avant reset des messages (en millisecondes)
     let messagesResetIn = null;
-    if (!user.isPremium && lastMessageDate) {
+    if (!isPremium && lastMessageDate) {
       const nextReset = new Date(lastMessageDate.getTime() + 24 * 60 * 60 * 1000);
       messagesResetIn = Math.max(0, nextReset - now);
     }
 
     // Calcule le prochain minuit pour les swipes
     let swipesResetAt = null;
-    if (!user.isPremium && lastSwipeDate) {
+    if (!isPremium && lastSwipeDate) {
       const tomorrow = new Date(now);
       tomorrow.setHours(24, 0, 0, 0); // Prochain minuit
       swipesResetAt = tomorrow;
     }
 
     res.json({
-      isPremium: user.isPremium || false,
+      isPremium: isPremium,
+      expiresAt: user.premiumExpiresAt ? user.premiumExpiresAt.toISOString() : null,
+      subscriptionId: user.stripeSubscriptionId || null,
       limits: {
         swipes: {
           limit: SWIPE_LIMIT,
           used: swipeCount,
-          remaining: user.isPremium ? Infinity : Math.max(0, SWIPE_LIMIT - swipeCount),
+          remaining: isPremium ? Infinity : Math.max(0, SWIPE_LIMIT - swipeCount),
           resetAt: swipesResetAt
         },
         messages: {
           limit: MESSAGE_PROFILE_LIMIT,
           used: messageProfileCount,
-          remaining: user.isPremium ? Infinity : Math.max(0, MESSAGE_PROFILE_LIMIT - messageProfileCount),
+          remaining: isPremium ? Infinity : Math.max(0, MESSAGE_PROFILE_LIMIT - messageProfileCount),
           resetIn: messagesResetIn, // En millisecondes
           resetAt: messagesResetIn ? new Date(now.getTime() + messagesResetIn) : null
         }
@@ -88,10 +93,12 @@ exports.getPremiumInfo = async (req, res) => {
 // Récupère les limites de l'utilisateur (format compatible frontend)
 exports.getLimits = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('isPremium');
+    const user = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
+    // Synchronise le premium avec la date d'expiration (passe à false si expiré)
+    const isPremium = await User.syncPremiumIfExpired(user);
 
     const profile = await Profile.findOne({ userId: req.user._id });
     if (!profile) {
@@ -135,15 +142,15 @@ exports.getLimits = async (req, res) => {
     const songsCount = profile.media?.filter(m => m.type === 'mp3' || (m.url && m.url.toLowerCase().endsWith('.mp3')))?.length || 0;
 
     // Limites pour photos et sons
-    const PHOTOS_LIMIT = user.isPremium ? Infinity : 3;
-    const SONGS_LIMIT = user.isPremium ? Infinity : 1;
+    const PHOTOS_LIMIT = isPremium ? Infinity : 3;
+    const SONGS_LIMIT = isPremium ? Infinity : 1;
 
     // Retourne le format attendu par le frontend
     res.json({
-      swipesToday: user.isPremium ? 0 : swipeCount,
-      swipesLimit: user.isPremium ? Infinity : SWIPE_LIMIT,
-      messagesToday: user.isPremium ? 0 : messageProfileCount,
-      messagesLimit: user.isPremium ? Infinity : MESSAGE_PROFILE_LIMIT,
+      swipesToday: isPremium ? 0 : swipeCount,
+      swipesLimit: isPremium ? Infinity : SWIPE_LIMIT,
+      messagesToday: isPremium ? 0 : messageProfileCount,
+      messagesLimit: isPremium ? Infinity : MESSAGE_PROFILE_LIMIT,
       photosCount: photosCount,
       photosLimit: PHOTOS_LIMIT,
       songsCount: songsCount,
@@ -157,7 +164,8 @@ exports.getLimits = async (req, res) => {
 // Met à jour le statut premium d'un utilisateur (pour admin ou système de paiement)
 exports.updatePremiumStatus = async (req, res) => {
   try {
-    const { isPremium } = req.body;
+    const { isPremium, expiresAt, subscriptionId } = req.body
+    
 
     if (typeof isPremium !== 'boolean') {
       return res.status(400).json({ message: 'isPremium doit être un boolean' });
@@ -191,13 +199,14 @@ exports.updateSwipes = async (req, res) => {
       return res.status(401).json({ message: 'Utilisateur non authentifié' });
     }
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
+    const isPremium = await User.syncPremiumIfExpired(user);
 
     // Si l'utilisateur est premium, pas besoin d'incrémenter
-    if (user.isPremium) {
+    if (isPremium) {
       return res.json({
         success: true,
         message: 'Utilisateur premium - pas de limite',

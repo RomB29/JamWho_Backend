@@ -158,10 +158,11 @@ exports.likeProfile = async (req, res) => {
     }
 
     // Récupère l'utilisateur pour vérifier le statut premium
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
+    const isPremium = await User.syncPremiumIfExpired(user);
 
     // Récupère le profil de l'utilisateur actuel
     const currentProfile = await Profile.findOne({ userId: req.user._id });
@@ -171,7 +172,7 @@ exports.likeProfile = async (req, res) => {
     }
 
     // Vérifie les limites pour les utilisateurs non-premium
-    if (!user.isPremium) {
+    if (!isPremium) {
       // Réinitialise les limites si nécessaire
       resetDailyLimitsIfNeeded(currentProfile);
 
@@ -202,7 +203,7 @@ exports.likeProfile = async (req, res) => {
     currentProfile.likedUsers.push(targetUserIdObj);
     
     // Incrémente le compteur de swipes pour les non-premium
-    if (!user.isPremium) {
+    if (!isPremium) {
       currentProfile.dailySwipes.count = (currentProfile.dailySwipes.count || 0) + 1;
     }
     

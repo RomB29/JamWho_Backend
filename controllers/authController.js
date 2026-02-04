@@ -276,6 +276,7 @@ exports.loginWithGoogle = async (req, res) => {
 exports.checkAuth = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
+    const isPremium = await User.syncPremiumIfExpired(user);
     res.json({
       isAuthenticated: true,
       userId: user._id,
@@ -283,7 +284,7 @@ exports.checkAuth = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        isPremium: user.isPremium || false
+        isPremium: isPremium
       }
     });
   } catch (error) {

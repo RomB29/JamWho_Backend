@@ -44,6 +44,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Webhook Stripe : body brut obligatoire (doit être avant express.json())
+const stripeController = require('./controllers/stripeController');
+app.post(
+  '/api/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeController.handleWebhook
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -105,6 +113,7 @@ app.use('/api/swipe', require('./routes/swipe'));
 app.use('/api/matches', require('./routes/matches'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/premium', require('./routes/premium'));
+app.use('/api/stripe', require('./routes/stripe'));
 app.use('/api/notifications', require('./routes/notifications'));
 
 // Route de test

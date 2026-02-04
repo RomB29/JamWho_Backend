@@ -93,12 +93,13 @@ exports.sendMessage = async (req, res) => {
     });
 
     // Vérifie les limites pour les utilisateurs non-premium
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
+    const isPremium = await User.syncPremiumIfExpired(user);
 
-    if (!user.isPremium) {
+    if (!isPremium) {
       const profile = await Profile.findOne({ userId: req.user._id });
       if (!profile) {
         return res.status(404).json({ message: 'Profil non trouvé' });

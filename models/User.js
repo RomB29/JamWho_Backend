@@ -45,6 +45,15 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  premiumStartedAt: {
+    type: Date,
+    default: null
+  },
+  premiumPlanType: {
+    type: String,
+    default: null,
+    enum: [null, 'weekly', 'monthly']
+  },
   newLike: {
     type: Number,
     default: 0
@@ -79,20 +88,26 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 };
 
 /**
- * Synchronise le statut premium avec la date d'expiration.
- * Si isPremium est true mais premiumExpiresAt est dépassée, passe isPremium à false
- * et nettoie stripeSubscriptionId / premiumExpiresAt (stripeCustomerId conservé).
+ * Vérifie la date de fin d'abonnement (premiumExpiresAt vs now).
+ * Si la date de fin est dépassée, l'utilisateur perd le statut premium.
+ * À appeler avant toute lecture de isPremium pour garantir un statut à jour.
+ *
  * @param {import('mongoose').Document} user - Document utilisateur (doit avoir isPremium et premiumExpiresAt chargés)
  * @returns {Promise<boolean>} - true si l'utilisateur est premium actif, false sinon
  */
 userSchema.statics.syncPremiumIfExpired = async function(user) {
   if (!user || !user.isPremium) return !!user?.isPremium;
   if (!user.premiumExpiresAt) return true; // pas de date = actif (renouvellement automatique)
+
   const now = new Date();
-  if (user.premiumExpiresAt > now) return true; // pas encore expiré
+  // Date de fin vs now : si la date de fin est dépassée, on retire le premium
+  if (user.premiumExpiresAt > now) return true;
+
   user.isPremium = false;
   user.stripeSubscriptionId = null;
   user.premiumExpiresAt = null;
+  user.premiumStartedAt = null;
+  user.premiumPlanType = null;
   await user.save();
   return false;
 };

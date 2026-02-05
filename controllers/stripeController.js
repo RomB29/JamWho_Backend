@@ -22,7 +22,7 @@ exports.getCheckoutSessionStatus = async (req, res) => {
 
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['subscription']
+      expand: ['subscription', 'subscription.items.data.price']
     });
 
     let expiresAt = null;
@@ -40,10 +40,20 @@ exports.getCheckoutSessionStatus = async (req, res) => {
       if (customerEmail) {
         const user = await User.findOne({ email: customerEmail.toLowerCase() });
         if (user) {
+          const current_period_start = subscription.items.data[0].current_period_start;
+          const current_period_end = subscription.items.data[0].current_period_end;
           user.isPremium = true;
           user.stripeCustomerId = session.customer || user.stripeCustomerId;
           user.stripeSubscriptionId = subscriptionId;
+          user.premiumStartedAt = new Date(current_period_start * 1000);
+          user.premiumExpiresAt = new Date(current_period_end * 1000);
           if (expiresAt) user.premiumExpiresAt = new Date(expiresAt);
+          if (subscription?.current_period_start) {
+            user.premiumStartedAt = new Date(subscription.current_period_start * 1000);
+          }
+          const interval = subscription?.items?.data?.[0]?.price?.recurring?.interval;
+          if (interval === 'week') user.premiumPlanType = 'weekly';
+          else if (interval === 'month') user.premiumPlanType = 'monthly';
           await user.save();
         }
       }
@@ -179,10 +189,18 @@ async function handleCheckoutCompleted(session) {
 
   if (subscriptionId) {
     try {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+        expand: ['items.data.price']
+      });
       if (subscription.current_period_end) {
         user.premiumExpiresAt = new Date(subscription.current_period_end * 1000);
       }
+      if (subscription.current_period_start) {
+        user.premiumStartedAt = new Date(subscription.current_period_start * 1000);
+      }
+      const interval = subscription?.items?.data?.[0]?.price?.recurring?.interval;
+      if (interval === 'week') user.premiumPlanType = 'weekly';
+      else if (interval === 'month') user.premiumPlanType = 'monthly';
     } catch (e) {
       console.warn('[Stripe] Impossible de récupérer la période abonnement:', e.message);
     }
@@ -197,12 +215,18 @@ async function handleSubscriptionUpdated(subscription) {
   const user = await User.findOne({ stripeCustomerId: customerId });
   if (!user) return;
 
-  const isActive = ['active', 'trialing'].includes(subscription.status);
-  user.isPremium = isActive;
-  user.stripeSubscriptionId = subscription.id;
-  user.premiumExpiresAt = subscription.current_period_end
+  const now = new Date();
+  const periodEnd = subscription.current_period_end
     ? new Date(subscription.current_period_end * 1000)
     : null;
+  // Conserver les droits premium jusqu'à la fin de la période même si annulation (cancel_at_period_end)
+  const isActive =
+    ['active', 'trialing'].includes(subscription.status) ||
+    (subscription.status === 'canceled' && periodEnd && periodEnd > now);
+
+  user.isPremium = isActive;
+  user.stripeSubscriptionId = subscription.id;
+  user.premiumExpiresAt = periodEnd;
   await user.save();
 }
 
@@ -214,6 +238,8 @@ async function handleSubscriptionDeleted(subscription) {
   user.isPremium = false;
   user.stripeSubscriptionId = null;
   user.premiumExpiresAt = null;
+  user.premiumStartedAt = null;
+  user.premiumPlanType = null;
   await user.save();
   console.log('[Stripe] Premium désactivé pour userId:', user._id);
 }

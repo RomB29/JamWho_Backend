@@ -4,6 +4,22 @@ const getServerBaseUrl = require('../utils/serverBaseUrl');
 const fs = require('fs');
 const path = require('path');
 
+const SKILL_LEVELS = ['Novice', 'Learner', 'Intermediate', 'Advanced', 'Master', 'Teacher'];
+
+function normalizeInstruments(instruments) {
+  if (!instruments || !Array.isArray(instruments)) return [];
+  return instruments.map((item) => {
+    if (typeof item === 'string') {
+      return { name: item.trim(), level: 'Novice' };
+    }
+    if (item && typeof item === 'object' && item.name) {
+      const level = SKILL_LEVELS.includes(item.level) ? item.level : 'Novice';
+      return { name: String(item.name).trim(), level };
+    }
+    return null;
+  }).filter((item) => item && item.name && item.name.trim());
+}
+
 // Helper function pour transformer les URLs de photos relatives en URLs complètes
 function transformPhotoUrls(photos) {
   if (!photos || !Array.isArray(photos)) {
@@ -37,17 +53,16 @@ exports.getProfile = async (req, res) => {
     const user = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
     const isPremium = user ? await User.syncPremiumIfExpired(user) : false;
 
-    // Transforme les URLs de photos en URLs complètes
     const profileObj = profile.toObject();
     if (profileObj.photos) {
       profileObj.photos = transformPhotoUrls(profileObj.photos);
     }
-
-    // Ajoute les informations premium au profil
+    if (profileObj.instruments && Array.isArray(profileObj.instruments)) {
+      profileObj.instruments = normalizeInstruments(profileObj.instruments);
+    }
     if (profileObj.userId) {
       profileObj.userId.isPremium = isPremium;
     }
-
     res.json(profileObj);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
@@ -73,15 +88,14 @@ exports.updateProfile = async (req, res) => {
     let profile = await Profile.findOne({ userId: req.user._id });
 
     if (!profile) {
-      // Crée le profil s'il n'existe pas
       profile = new Profile({
         userId: req.user._id,
         pseudo: pseudo || req.user.username,
-        age: age || 18, // Par défaut 18 si non fourni
-        sexe: sexe || 'autre', // Par défaut 'autre' si non fourni
-        photos: photos || ['https://i.pravatar.cc/300?img=12'],
+        age: age || 18,
+        sexe: sexe || 'autre',
+        photos: photos || [],
         description: description || '',
-        instruments: instruments || [],
+        instruments: normalizeInstruments(instruments),
         styles: styles || [],
         maxDistance: maxDistance || 50,
         media: media || []
@@ -106,7 +120,7 @@ exports.updateProfile = async (req, res) => {
       }
       if (photos !== undefined) profile.photos = photos;
       if (description !== undefined) profile.description = description;
-      if (instruments !== undefined) profile.instruments = instruments;
+      if (instruments !== undefined) profile.instruments = normalizeInstruments(instruments);
       if (styles !== undefined) profile.styles = styles;
       if (maxDistance !== undefined) profile.maxDistance = maxDistance;
       if (media !== undefined) profile.media = media;
@@ -142,12 +156,13 @@ exports.updateProfile = async (req, res) => {
 
     await profile.save();
 
-    // Transforme les URLs de photos en URLs complètes avant de retourner
     const profileObj = profile.toObject();
     if (profileObj.photos) {
       profileObj.photos = transformPhotoUrls(profileObj.photos);
     }
-
+    if (profileObj.instruments && Array.isArray(profileObj.instruments)) {
+      profileObj.instruments = normalizeInstruments(profileObj.instruments);
+    }
     res.json({
       success: true,
       profile: profileObj
@@ -168,12 +183,13 @@ exports.getProfileById = async (req, res) => {
       return res.status(404).json({ message: 'Profil non trouvé' });
     }
 
-    // Transforme les URLs de photos en URLs complètes
     const profileObj = profile.toObject();
     if (profileObj.photos) {
       profileObj.photos = transformPhotoUrls(profileObj.photos);
     }
-
+    if (profileObj.instruments && Array.isArray(profileObj.instruments)) {
+      profileObj.instruments = normalizeInstruments(profileObj.instruments);
+    }
     res.json(profileObj);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });

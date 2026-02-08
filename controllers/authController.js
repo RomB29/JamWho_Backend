@@ -83,7 +83,7 @@ exports.register = async (req, res) => {
     const profileData = {
       userId: user._id,
       pseudo: username,
-      photos: ['https://i.pravatar.cc/300?img=12'],
+      photos: [],
       description: '',
       instruments: [],
       styles: [],
@@ -226,7 +226,7 @@ exports.loginWithGoogle = async (req, res) => {
         await user.save();
 
         // Détermine la photo de profil (utilise la photo Google si disponible)
-        const defaultPhoto = picture || 'https://i.pravatar.cc/300?img=12';
+        const defaultPhoto = picture;
 
         // Crée un profil par défaut
         // Note: age et sexe sont requis - valeurs par défaut (l'utilisateur devra les modifier dans son profil)
@@ -248,7 +248,7 @@ exports.loginWithGoogle = async (req, res) => {
       // Si l'utilisateur existe déjà, met à jour le profil avec la photo Google si fournie
       if (picture) {
         const profile = await Profile.findOne({ userId: user._id });
-        if (profile && (!profile.photos || profile.photos.length === 0 || profile.photos[0] === 'https://i.pravatar.cc/300?img=12')) {
+        if (profile && (!profile.photos || profile.photos.length === 0 )) {
           profile.photos[0] = picture;
           await profile.save();
         }

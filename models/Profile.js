@@ -48,8 +48,12 @@ const profileSchema = new mongoose.Schema({
     default: ''
   },
   instruments: [{
-    type: String,
-    trim: true
+    name: { type: String, trim: true, required: true },
+    level: {
+      type: String,
+      enum: ['Novice', 'Learner', 'Intermediate', 'Advanced', 'Master', 'Teacher'],
+      default: 'Novice'
+    }
   }],
   styles: [{
     type: String,

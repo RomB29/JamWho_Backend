@@ -3,6 +3,23 @@ const Match = require('../models/Match');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
 const { SWIPE_LIMIT } = require('../config/constants');
+// Normalise le profil pour la carte / frontend : assure location.latitude et location.longitude
+function normalizeProfileLocation(profile) {
+  const p = profile && typeof profile.toObject === 'function' ? profile.toObject() : { ...profile };
+  if (p.location && p.location.coordinates && Array.isArray(p.location.coordinates) && p.location.coordinates.length >= 2) {
+    const [lng, lat] = p.location.coordinates.map(Number);
+    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+      p.location = {
+        type: p.location.type || 'Point',
+        coordinates: p.location.coordinates,
+        latitude: lat,
+        longitude: lng
+      };
+    }
+  }
+  return p;
+}
+
 // Helper function pour vérifier et réinitialiser les limites journalières
 function resetDailyLimitsIfNeeded(profile) {
   const now = new Date();
@@ -55,13 +72,16 @@ exports.getProfiles = async (req, res) => {
 
     if (!hasValidLocation) {
       // Si pas de localisation valide, on retourne tous les profils disponibles (sans filtre de distance)
+      const excludedIds = [req.user._id, ...likedUserIds, ...blockedUserIds];
       const profiles = await Profile.find({
-        userId: { $ne: req.user._id, $nin: likedUserIds }
+        userId: { $nin: excludedIds }
       })
-      .populate('userId', 'username email')
-      .limit(50);
+        .populate('userId', 'username email')
+        .limit(50)
+        .lean();
 
-      return res.json(profiles);
+      const normalized = profiles.map(normalizeProfileLocation);
+      return res.json(normalized);
     }
 
     // Extrait les coordonnées
@@ -127,16 +147,19 @@ exports.getProfiles = async (req, res) => {
       }
     ]);
 
-    // Convertit distanceCalculated de mètres en km pour la réponse
-    const profilesWithDistance = profiles.map(profile => ({
-      ...profile,
-      distanceCalculated: profile.distanceCalculated ? parseFloat((profile.distanceCalculated / 1000).toFixed(2)) : 0, // En km avec 2 décimales
-      userId: {
-        _id: profile.userId._id,
-        username: profile.userId.username,
-        email: profile.userId.email
-      }
-    }));
+    // Convertit distanceCalculated en km et normalise location pour la carte (latitude/longitude)
+    const profilesWithDistance = profiles.map(profile => {
+      const base = {
+        ...profile,
+        distanceCalculated: profile.distanceCalculated ? parseFloat((profile.distanceCalculated / 1000).toFixed(2)) : 0,
+        userId: {
+          _id: profile.userId._id,
+          username: profile.userId.username,
+          email: profile.userId.email
+        }
+      };
+      return normalizeProfileLocation(base);
+    });
 
     res.json(profilesWithDistance);
   } catch (error) {

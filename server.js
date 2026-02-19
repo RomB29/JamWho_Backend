@@ -14,6 +14,11 @@ const app = express();
 // Connexion à MongoDB
 connectDB();
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL_ANDROID 
+]
+
 // Middleware CORS personnalisé : permet l'accès public aux fichiers statiques
 // et l'accès avec credentials pour les routes API
 app.use((req, res, next) => {
@@ -27,9 +32,8 @@ app.use((req, res, next) => {
   } else {
     // Pour les routes API : accès depuis le frontend avec credentials
     const origin = req.headers.origin;
-    const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:9000';
-    
-    if (origin === allowedOrigin) {
+
+    if (origin && allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Access-Control-Allow-Credentials', 'true');
     }

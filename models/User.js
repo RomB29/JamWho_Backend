@@ -54,6 +54,10 @@ const userSchema = new mongoose.Schema({
     default: null,
     enum: [null, 'weekly', 'monthly']
   },
+  onboardingValidated: {
+    type: Boolean,
+    default: false
+  },
   newLike: {
     type: Number,
     default: 0

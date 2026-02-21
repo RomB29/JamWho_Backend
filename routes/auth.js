@@ -12,5 +12,7 @@ router.post('/login/google', authController.loginWithGoogle);
 // Route protégée
 router.get('/check', auth, authController.checkAuth);
 
+router.post('/onboarding-validated', authController.onboardingValidated)
+
 module.exports = router;
 

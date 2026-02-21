@@ -160,7 +160,8 @@ exports.login = async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        onboardingValidated: user.onboardingValidated === true
       }
     });
   } catch (error) {
@@ -264,7 +265,8 @@ exports.loginWithGoogle = async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        onboardingValidated: user.onboardingValidated === true
       }
     });
   } catch (error) {
@@ -284,9 +286,24 @@ exports.checkAuth = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        isPremium: isPremium
+        isPremium: isPremium,
+        onboardingValidated: user.onboardingValidated === true
       }
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+exports.onboardingValidated = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(401).json({ message: 'Utilisateur non trouvé' });
+    }
+    user.onboardingValidated = true;
+    await user.save();
+    res.json({ message: 'Onboarding validé avec succès' });
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }

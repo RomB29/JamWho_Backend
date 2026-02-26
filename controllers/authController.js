@@ -297,7 +297,9 @@ exports.checkAuth = async (req, res) => {
 
 exports.onboardingValidated = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const pseudo = req.body.pseudo;
+    const user = await User.findOne({ username: pseudo });
+
     if (!user) {
       return res.status(401).json({ message: 'Utilisateur non trouvé' });
     }

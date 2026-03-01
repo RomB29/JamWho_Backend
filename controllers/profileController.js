@@ -82,7 +82,9 @@ exports.updateProfile = async (req, res) => {
       styles,
       maxDistance,
       media,
-      location
+      location,
+      locationName,
+      city
     } = req.body;
 
     let profile = await Profile.findOne({ userId: req.user._id });
@@ -98,7 +100,8 @@ exports.updateProfile = async (req, res) => {
         instruments: normalizeInstruments(instruments),
         styles: styles || [],
         maxDistance: maxDistance || 50,
-        media: media || []
+        media: media || [],
+        locationName: locationName || city || null
       });
     } else {
       // Met à jour le profil
@@ -150,6 +153,8 @@ exports.updateProfile = async (req, res) => {
           };
         }
       }
+      if (locationName !== undefined) profile.locationName = locationName ? String(locationName).trim() : null;
+      if (city !== undefined && profile.locationName == null) profile.locationName = city ? String(city).trim() : null;
       
       profile.updatedAt = new Date();
     }

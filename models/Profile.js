@@ -81,6 +81,12 @@ const profileSchema = new mongoose.Schema({
       default: [-4.481, 48.397] // X-coordinates longitude   Y-coordinates latitude
     }
   },
+  /** Nom de la ville / lieu (affichage, ex: "Paris, Île-de-France, France") */
+  locationName: {
+    type: String,
+    default: null,
+    trim: true
+  },
   likedUsers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Message = require('../models/Message');
+const Notification = require('../models/Notification');
 
 // Récupère les notifications de l'utilisateur
 exports.getNotifications = async (req, res) => {
@@ -9,9 +10,15 @@ exports.getNotifications = async (req, res) => {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
 
+    const notificationUnreadCount = await Notification.countDocuments({
+      userId: req.user._id,
+      read: false
+    });
+
     res.json({
       newLike: user.newLike || 0,
-      messageUnread: user.messageUnread || 0
+      messageUnread: user.messageUnread || 0,
+      notificationUnreadCount
     });
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
@@ -75,6 +82,80 @@ exports.resetMessageUnread = async (req, res) => {
     }
 
     res.json({ success: true, messageUnread: user.messageUnread || 0 });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+/** Liste paginée des notifications (message, like, match) */
+exports.getNotificationList = async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
+    const query = { userId: req.user._id, read: false };
+    const [notifications, total] = await Promise.all([
+      Notification.find(query)
+        .sort({ createdAt: -1 })
+        .populate('actorId', 'username')
+        .lean(),
+      Notification.countDocuments({ userId: req.user._id })
+    ]);
+
+    const unreadCount = await Notification.countDocuments({
+      userId: req.user._id,
+      read: false
+    });
+
+    res.json({
+      notifications: notifications.map(n => ({
+        id: n._id,
+        type: n.type,
+        actorId: n.actorId?._id,
+        actorUsername: n.actorId?.username,
+        relatedId: n.relatedId,
+        conversationId: n.conversationId,
+        title: n.title,
+        body: n.body,
+        read: n.read,
+        readAt: n.readAt,
+        createdAt: n.createdAt
+      })),
+      pagination: { page, limit, total },
+      unreadCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+/** Marque une notification comme lue */
+exports.markNotificationRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const notif = await Notification.findOneAndUpdate(
+      { _id: id, userId: req.user._id },
+      { read: true, readAt: new Date() },
+      { new: true }
+    );
+    if (!notif) {
+      return res.status(404).json({ message: 'Notification non trouvée' });
+    }
+    res.json({ success: true, notification: notif });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+/** Marque toutes les notifications comme lues */
+exports.markAllNotificationsRead = async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { userId: req.user._id, read: false },
+      { read: true, readAt: new Date() }
+    );
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }

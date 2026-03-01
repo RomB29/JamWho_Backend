@@ -3,6 +3,7 @@ const Match = require('../models/Match');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
 const { SWIPE_LIMIT } = require('../config/constants');
+const { createNotification } = require('../utils/notificationHelper');
 // Normalise le profil pour la carte / frontend : assure location.latitude et location.longitude
 function normalizeProfileLocation(profile) {
   const p = profile && typeof profile.toObject === 'function' ? profile.toObject() : { ...profile };
@@ -295,7 +296,28 @@ exports.likeProfile = async (req, res) => {
           targetUser.newLike = (targetUser.newLike || 0) + 1;
           await targetUser.save();
         }
+
+        // Notification like (app + futur push mobile)
+        await createNotification({
+          userId: targetUserIdObj,
+          actorId: req.user._id,
+          type: 'like',
+          title: 'Nouveau like',
+          body: 'Quelqu\'un vous a liké !'
+        });
       }
+    }
+
+    // Si c'est un match, notifier l'autre utilisateur (celui qui était déjà liké)
+    if (isMatch && match) {
+      await createNotification({
+        userId: targetUserIdObj,
+        actorId: req.user._id,
+        type: 'match',
+        relatedId: match._id,
+        title: 'Nouveau match',
+        body: 'C\'est un match ! Vous pouvez discuter.'
+      });
     }
 
     res.json({

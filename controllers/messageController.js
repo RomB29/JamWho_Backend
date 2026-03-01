@@ -3,6 +3,7 @@ const Match = require('../models/Match');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const { createNotification } = require('../utils/notificationHelper');
 
 // Helper function pour générer un conversationId unique entre deux utilisateurs
 // Le conversationId est déterministe : il sera toujours le même pour deux utilisateurs donnés
@@ -156,6 +157,18 @@ exports.sendMessage = async (req, res) => {
       receiverUser.messageUnread = (receiverUser.messageUnread || 0) + 1;
       await receiverUser.save();
     }
+
+    // Notification pour le destinataire (app + futur push mobile)
+    const sender = await User.findById(req.user._id).select('username').lean();
+    await createNotification({
+      userId: receiverId,
+      actorId: req.user._id,
+      type: 'message',
+      relatedId: message._id,
+      conversationId,
+      title: 'Nouveau message',
+      body: sender?.username ? `${sender.username}: ${content.trim().slice(0, 50)}${content.trim().length > 50 ? '…' : ''}` : content.trim().slice(0, 80)
+    });
 
     await message.populate('senderId', 'username');
     await message.populate('receiverId', 'username');

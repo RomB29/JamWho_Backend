@@ -370,6 +370,29 @@ exports.removeLike = async (req, res) => {
   }
 };
 
+exports.removeProfileFromLiked = async (req, res) => {
+  try {
+    const { targetUserId } = req.body;
+    if (!targetUserId) {
+      return res.status(400).json({ message: 'targetUserId requis' });
+    }
+    const currentProfile = await Profile.findOne({ userId: req.user._id });
+    if (!currentProfile) {
+      return res.status(404).json({ message: 'Profil non trouvé' });
+    }
+
+    const targetProfile = await Profile.findOne({ _id: targetUserId });
+    currentProfile.whoLikedMe.pull(targetProfile.userId);
+    await currentProfile.save();
+    res.json({
+      success: true,
+      message: 'Profil retiré des likés',
+      profileRemoved: true
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
 // Récupère les profils likés
 exports.getLikedProfiles = async (req, res) => {
   try {

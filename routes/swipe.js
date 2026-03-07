@@ -11,6 +11,7 @@ router.post('/like', swipeController.likeProfile);
 router.get('/liked', swipeController.getLikedProfiles);
 router.get('/who-liked-me', swipeController.getWhoLikedMe);
 router.post('/remove-liked', swipeController.removeLike);
+router.post('/remove-profile-from-liked', swipeController.removeProfileFromLiked);
 
 module.exports = router;
 

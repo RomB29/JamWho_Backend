@@ -16,7 +16,9 @@ connectDB();
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  process.env.FRONTEND_URL_ANDROID 
+  process.env.FRONTEND_URL_ANDROID,
+  process.env.FRONTEND_URL_PROD_MOBILE,
+  process.env.FRONTEND_URL_PROD_WEB
 ]
 
 // Middleware CORS personnalisé : permet l'accès public aux fichiers statiques

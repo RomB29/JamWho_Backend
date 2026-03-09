@@ -43,10 +43,6 @@ const profileSchema = new mongoose.Schema({
     type: String,
     required: true
   }],
-  onboardingValidated: {
-    type: Boolean,
-    default: false
-  },
   description: {
     type: String,
     default: ''

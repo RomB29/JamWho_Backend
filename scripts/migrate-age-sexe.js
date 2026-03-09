@@ -12,10 +12,7 @@ const Profile = require('../models/Profile');
 const migrateAgeAndSexe = async () => {
   try {
     // Connexion à MongoDB
-    await mongoose.connect(process.env.MONGODB_URL_DEV, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGODB_URL_DEV);
     console.log('✅ Connecté à MongoDB\n');
 
     // Récupère tous les profils

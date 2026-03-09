@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/database');
 const errorHandler = require('./middleware/errorHandler');
+const auth = require('./middleware/auth');
+const { uploadProfilePhoto, uploadProfileSong } = require('./middleware/uploadFile');
+const profileController = require('./controllers/profileController');
 
 // Charge les variables d'environnement
 dotenv.config();
@@ -19,7 +22,13 @@ const allowedOrigins = [
   process.env.FRONTEND_URL_ANDROID,
   process.env.FRONTEND_URL_PROD_MOBILE,
   process.env.FRONTEND_URL_PROD_WEB
-]
+].filter(Boolean);
+
+// Autoriser les deux variantes jamcloud.app (avec et sans www) si l'une est configurée
+const jamcloud = 'https://jamcloud.app';
+const jamcloudWww = 'https://www.jamcloud.app';
+if (allowedOrigins.includes(jamcloud) && !allowedOrigins.includes(jamcloudWww)) allowedOrigins.push(jamcloudWww);
+if (allowedOrigins.includes(jamcloudWww) && !allowedOrigins.includes(jamcloud)) allowedOrigins.push(jamcloud);
 
 // Middleware CORS personnalisé : permet l'accès public aux fichiers statiques
 // et l'accès avec credentials pour les routes API
@@ -66,6 +75,10 @@ app.use(express.urlencoded({ extended: true }));
 // Le dossier PUBLIC_UPLOAD doit être au même niveau que server.js
 const staticDirectory = path.join(__dirname);
 const PUBLIC_FOLDER_UPLOAD = 'PUBLIC_UPLOAD';
+
+// Routes d'upload sous /profile (sans /api) - AVANT le static pour prendre les POST
+app.post('/profile/photo', auth, uploadProfilePhoto.single('photo'), profileController.uploadPhoto);
+app.post('/profile/song', auth, uploadProfileSong.single('song'), profileController.uploadSong);
 
 // Middleware pour servir les fichiers statiques AVANT toutes les autres routes
 // Cette route doit être définie AVANT les routes API pour éviter les conflits
@@ -114,6 +127,7 @@ app.use('/song/', express.static(staticSongPath, {
 // Routes API (nécessitent authentification)
 // IMPORTANT: Ces routes sont définies APRÈS la route statique /profile/
 app.use('/api/auth', require('./routes/auth'));
+app.use('/auth', require('./routes/auth')); // front appelle /auth/check-user (sans /api)
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/swipe', require('./routes/swipe'));
 app.use('/api/matches', require('./routes/matches'));
@@ -121,6 +135,7 @@ app.use('/api/messages', require('./routes/messages'));
 app.use('/api/premium', require('./routes/premium'));
 app.use('/api/stripe', require('./routes/stripe'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/notifications', require('./routes/notifications')); // même routes sans préfixe /api (front appelle /notifications, /notifications/list)
 
 // Route de test
 app.get('/api/health', (req, res) => {
@@ -134,8 +149,13 @@ app.get('/api/health', (req, res) => {
 // Gestion des erreurs (doit être le dernier middleware)
 app.use(errorHandler);
 
-// Gestion des routes non trouvées
+// Gestion des routes non trouvées (avec CORS pour que le client puisse lire la réponse)
 app.use((req, res) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
   res.status(404).json({ message: 'Route non trouvée' });
 });
 

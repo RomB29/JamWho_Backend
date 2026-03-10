@@ -125,6 +125,11 @@ exports.getProfiles = async (req, res) => {
         }
       },
       {
+        $match: {
+          'userId.onboardingValidated': true // Uniquement les utilisateurs ayant validé l'onboarding
+        }
+      },
+      {
         $project: {
           pseudo: 1,
           age: 1,

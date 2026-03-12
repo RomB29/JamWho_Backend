@@ -26,7 +26,9 @@ const profileSchema = new mongoose.Schema({
   pseudo: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
+    minlength: [4, 'Le pseudo doit contenir entre 4 et 20 caractères'],
+    maxlength: [20, 'Le pseudo doit contenir entre 4 et 20 caractères']
   },
   age: {
     type: Number,
@@ -45,7 +47,8 @@ const profileSchema = new mongoose.Schema({
   }],
   description: {
     type: String,
-    default: ''
+    default: '',
+    maxlength: [400, 'La description ne peut pas dépasser 400 caractères']
   },
   instruments: [{
     name: { type: String, trim: true, required: true },

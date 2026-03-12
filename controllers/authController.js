@@ -38,10 +38,18 @@ exports.register = async (req, res) => {
   try {
     const { username, email, password, age, sexe } = req.body;
 
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ message: 'Username requis' });
+    }
+    const trimmedUsername = username.trim();
+    if (trimmedUsername.length < 4 || trimmedUsername.length > 20) {
+      return res.status(400).json({ message: 'Le nom d\'utilisateur doit contenir entre 4 et 20 caractères' });
+    }
+
     // Vérifie si l'utilisateur existe déjà
     const existingUser = await User.findOne({
       $or: [
-        { username },
+        { username: trimmedUsername },
         { email: email.toLowerCase() }
       ]
     });
@@ -49,7 +57,7 @@ exports.register = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ 
         message: 'Username ou email déjà utilisé',
-        field: existingUser.username === username ? 'username' : 'email'
+        field: existingUser.username === trimmedUsername ? 'username' : 'email'
       });
     }
 
@@ -72,7 +80,7 @@ exports.register = async (req, res) => {
 
     // Crée l'utilisateur
     const user = new User({
-      username,
+      username: trimmedUsername,
       email: email.toLowerCase(),
       password
     });
@@ -82,7 +90,7 @@ exports.register = async (req, res) => {
     // Crée un profil avec les informations fournies
     const profileData = {
       userId: user._id,
-      pseudo: username,
+      pseudo: trimmedUsername,
       photos: [],
       description: '',
       instruments: [],
@@ -207,7 +215,9 @@ exports.loginWithGoogle = async (req, res) => {
         let username = name || email.split('@')[0];
         // Nettoie le username (enlève les caractères spéciaux)
         username = username.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-        
+        if (username.length > 20) username = username.slice(0, 20);
+        if (username.length < 4) username = (username + '0000').slice(0, 4);
+
         // Vérifie si le username existe déjà
         let existingUser = await User.findOne({ username });
         let counter = 1;
@@ -231,9 +241,12 @@ exports.loginWithGoogle = async (req, res) => {
 
         // Crée un profil par défaut
         // Note: age et sexe sont requis - valeurs par défaut (l'utilisateur devra les modifier dans son profil)
+        let pseudo = (name || user.username || '').trim();
+        if (pseudo.length > 20) pseudo = pseudo.slice(0, 20);
+        if (pseudo.length < 4) pseudo = user.username;
         const profile = new Profile({
           userId: user._id,
-          pseudo: name || user.username,
+          pseudo,
           age: 18, // Valeur par défaut (l'utilisateur devra le modifier dans son profil)
           sexe: 'autre', // Valeur par défaut (l'utilisateur devra le modifier dans son profil)
           photos: [defaultPhoto],
@@ -310,4 +323,3 @@ exports.onboardingValidated = async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
-

@@ -90,13 +90,21 @@ exports.updateProfile = async (req, res) => {
     let profile = await Profile.findOne({ userId: req.user._id });
 
     if (!profile) {
+      const initialPseudo = (pseudo && String(pseudo).trim()) || req.user.username || '';
+      const initialDesc = description !== undefined ? String(description) : '';
+      if (initialPseudo.length < 4 || initialPseudo.length > 20) {
+        return res.status(400).json({ message: 'Le pseudo doit contenir entre 4 et 20 caractères' });
+      }
+      if (initialDesc.length > 400) {
+        return res.status(400).json({ message: 'La description ne peut pas dépasser 400 caractères' });
+      }
       profile = new Profile({
         userId: req.user._id,
-        pseudo: pseudo || req.user.username,
+        pseudo: initialPseudo.trim(),
         age: age || 18,
         sexe: sexe || 'autre',
         photos: photos || [],
-        description: description || '',
+        description: initialDesc,
         instruments: normalizeInstruments(instruments),
         styles: styles || [],
         maxDistance: maxDistance || 50,
@@ -105,7 +113,13 @@ exports.updateProfile = async (req, res) => {
       });
     } else {
       // Met à jour le profil
-      if (pseudo !== undefined) profile.pseudo = pseudo;
+      if (pseudo !== undefined) {
+        const trimmed = String(pseudo).trim();
+        if (trimmed.length < 4 || trimmed.length > 20) {
+          return res.status(400).json({ message: 'Le pseudo doit contenir entre 4 et 20 caractères' });
+        }
+        profile.pseudo = trimmed;
+      }
       if (age !== undefined) {
         const ageNum = parseInt(age);
         if (!isNaN(ageNum) && ageNum >= 18 && ageNum <= 100) {
@@ -122,7 +136,13 @@ exports.updateProfile = async (req, res) => {
         }
       }
       if (photos !== undefined) profile.photos = photos;
-      if (description !== undefined) profile.description = description;
+      if (description !== undefined) {
+        const desc = String(description);
+        if (desc.length > 400) {
+          return res.status(400).json({ message: 'La description ne peut pas dépasser 400 caractères' });
+        }
+        profile.description = desc;
+      }
       if (instruments !== undefined) profile.instruments = normalizeInstruments(instruments);
       if (styles !== undefined) profile.styles = styles;
       if (maxDistance !== undefined) profile.maxDistance = maxDistance;

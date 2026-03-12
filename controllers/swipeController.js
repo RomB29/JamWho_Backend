@@ -4,6 +4,7 @@ const Profile = require('../models/Profile');
 const User = require('../models/User');
 const { SWIPE_LIMIT } = require('../config/constants');
 const { createNotification } = require('../utils/notificationHelper');
+const { computeDistanceKm } = require('../utils/distanceHelper');
 // Normalise le profil pour la carte / frontend : assure location.latitude et location.longitude
 function normalizeProfileLocation(profile) {
   const p = profile && typeof profile.toObject === 'function' ? profile.toObject() : { ...profile };
@@ -20,6 +21,7 @@ function normalizeProfileLocation(profile) {
   }
   return p;
 }
+
 
 // Helper function pour vérifier et réinitialiser les limites journalières
 function resetDailyLimitsIfNeeded(profile) {
@@ -63,15 +65,16 @@ exports.getProfiles = async (req, res) => {
     const maxDistance = currentProfile.maxDistance || 50;
 
     // Vérifie si la localisation est valide
-    const hasValidLocation = currentProfile.location && 
-                             currentProfile.location.coordinates && 
-                             currentProfile.location.coordinates.length === 2 &&
-                             currentProfile.location.coordinates[0] !== null &&
-                             currentProfile.location.coordinates[1] !== null &&
-                             !isNaN(currentProfile.location.coordinates[0]) &&
-                             !isNaN(currentProfile.location.coordinates[1]);
+    const hasValidLocationFlag =
+      currentProfile.location &&
+      currentProfile.location.coordinates &&
+      currentProfile.location.coordinates.length === 2 &&
+      currentProfile.location.coordinates[0] !== null &&
+      currentProfile.location.coordinates[1] !== null &&
+      !isNaN(currentProfile.location.coordinates[0]) &&
+      !isNaN(currentProfile.location.coordinates[1]);
 
-    if (!hasValidLocation) {
+    if (!hasValidLocationFlag) {
       // Si pas de localisation valide, on retourne tous les profils disponibles (sans filtre de distance)
       const excludedIds = [req.user._id, ...likedUserIds, ...blockedUserIds];
       const profiles = await Profile.find({
@@ -433,7 +436,16 @@ exports.getLikedProfiles = async (req, res) => {
       userId: { $in: likedUserIds }
     }).populate('userId', 'username email');
 
-    res.json(profiles);
+    // Ajoute distanceCalculated en gardant la structure existante
+    const profilesWithDistance = profiles.map((profile) => {
+      const distance = computeDistanceKm(currentProfile, profile);
+      return {
+        ...normalizeProfileLocation(profile),
+        distanceCalculated: distance
+      };
+    });
+
+    res.json(profilesWithDistance);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -472,8 +484,19 @@ exports.getWhoLikedMe = async (req, res) => {
       userId: { $in: whoLikedMeIds }
     }).populate('userId', 'username email');
 
-    res.json(profiles);
+    // Ajoute distanceCalculated en gardant la structure existante
+    const profilesWithDistance = profiles.map((profile) => {
+      const distance = computeDistanceKm(currentProfile, profile);
+      const p = profile.toObject ? profile.toObject() : profile;
+      return {
+        ...normalizeProfileLocation(p),
+        distanceCalculated: distance
+      };
+    });
+
+    res.json(profilesWithDistance);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
+

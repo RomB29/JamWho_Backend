@@ -1,9 +1,12 @@
 const Match = require('../models/Match');
 const Profile = require('../models/Profile');
+const { computeDistanceKm } = require('../utils/distanceHelper');
 
 // Récupère tous les matches de l'utilisateur
 exports.getMatches = async (req, res) => {
   try {
+    const currentProfile = await Profile.findOne({ userId: req.user._id });
+
     const matches = await Match.find({
       users: req.user._id
     })
@@ -27,10 +30,20 @@ exports.getMatches = async (req, res) => {
         const otherUserId = otherUser._id;
         const profile = await Profile.findOne({ userId: otherUserId });
 
+        let profileWithDistance = profile;
+        if (profile && currentProfile) {
+          const distance = computeDistanceKm(currentProfile, profile);
+          const p = profile.toObject ? profile.toObject() : profile;
+          profileWithDistance = {
+            ...p,
+            distanceCalculated: distance
+          };
+        }
+
         return {
           id: match._id,
           user: otherUser,
-          profile: profile || null,
+          profile: profileWithDistance || null,
           createdAt: match.createdAt,
           lastMessageAt: match.lastMessageAt
         };
@@ -71,12 +84,22 @@ exports.getMatch = async (req, res) => {
     }
 
     const otherUserId = otherUser._id;
+    const currentProfile = await Profile.findOne({ userId: req.user._id });
     const profile = await Profile.findOne({ userId: otherUserId });
+
+    let profileWithDistance = profile;
+    if (profile && currentProfile) {
+      const distance = computeDistanceKm(currentProfile, profile);
+      profileWithDistance = {
+        ...profile,
+        distanceCalculated: distance
+      };
+    }
 
     res.json({
       id: match._id,
       user: otherUser,
-      profile: profile || null,
+      profile: profileWithDistance || null,
       createdAt: match.createdAt,
       lastMessageAt: match.lastMessageAt
     });
@@ -135,3 +158,4 @@ exports.removeMatch = async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
 };
+

@@ -64,7 +64,7 @@ const profileSchema = new mongoose.Schema({
   }],
   maxDistance: {
     type: Number,
-    default: 50,
+    default: 300,
     min: 1,
     max: 1000
   },

@@ -30,6 +30,9 @@ Thumbs.db
 *.tiff
 *.webp
 *.svg
+# Uploads utilisateurs
+PUBLIC_UPLOAD/
+
 # Build
 dist/
 build/

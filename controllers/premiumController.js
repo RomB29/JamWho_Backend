@@ -143,7 +143,7 @@ exports.getLimits = async (req, res) => {
 
     // Limites pour photos et sons
     const PHOTOS_LIMIT = isPremium ? Infinity : 3;
-    const SONGS_LIMIT = isPremium ? Infinity : 1;
+    const SONGS_LIMIT = isPremium ? Infinity : 2;
 
     // Retourne le format attendu par le frontend
     res.json({

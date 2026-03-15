@@ -61,8 +61,8 @@ exports.getProfiles = async (req, res) => {
     const likedUserIds = currentProfile.likedUsers || [];
 
     const blockedUserIds = currentProfile.blockedUsers || [];
-    // Récupère maxDistance (par défaut 50 km)
-    const maxDistance = currentProfile.maxDistance || 50;
+    // Récupère maxDistance (par défaut 300 km)
+    const maxDistance = currentProfile.maxDistance || 300;
 
     // Vérifie si la localisation est valide
     const hasValidLocationFlag =

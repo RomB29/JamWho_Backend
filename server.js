@@ -25,7 +25,7 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 // Autoriser les deux variantes jamcloud.app (avec et sans www) si l'une est configurée
-const jamcloud = 'https://jamcloud.app';
+const jamcloud = 'https://www.jamcloud.app';
 const jamcloudWww = 'https://www.jamcloud.app';
 if (allowedOrigins.includes(jamcloud) && !allowedOrigins.includes(jamcloudWww)) allowedOrigins.push(jamcloudWww);
 if (allowedOrigins.includes(jamcloudWww) && !allowedOrigins.includes(jamcloud)) allowedOrigins.push(jamcloud);

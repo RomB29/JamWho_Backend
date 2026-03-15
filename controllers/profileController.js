@@ -107,7 +107,7 @@ exports.updateProfile = async (req, res) => {
         description: initialDesc,
         instruments: normalizeInstruments(instruments),
         styles: styles || [],
-        maxDistance: maxDistance || 50,
+        maxDistance: maxDistance || 300,
         media: media || [],
         locationName: locationName || city || null
       });

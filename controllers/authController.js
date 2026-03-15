@@ -95,7 +95,7 @@ exports.register = async (req, res) => {
       description: '',
       instruments: [],
       styles: [],
-      maxDistance: 50,
+      maxDistance: 300,
       media: []
     };
 
@@ -253,7 +253,7 @@ exports.loginWithGoogle = async (req, res) => {
           description: '',
           instruments: [],
           styles: [],
-          maxDistance: 50,
+          maxDistance: 300,
           media: []
         });
         await profile.save();

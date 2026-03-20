@@ -125,6 +125,29 @@ const profileSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  /**
+   * Matchs de l'utilisateur (miroir du document Match ; le modèle Match reste la source pour messages).
+   */
+  matches: [{
+    matchId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Match',
+      required: true
+    },
+    otherUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    lastMessageAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   updatedAt: {
     type: Date,
     default: Date.now
@@ -138,6 +161,8 @@ profileSchema.index({ location: '2dsphere' }, { sparse: true });
 
 // Index pour les likes
 profileSchema.index({ likedUsers: 1 });
+profileSchema.index({ 'matches.matchId': 1 });
+profileSchema.index({ 'matches.otherUserId': 1 });
 
 // Méthodes virtuelles pour faciliter l'accès à latitude/longitude
 profileSchema.virtual('latitude').get(function() {

@@ -43,7 +43,9 @@ function transformPhotoUrls(photos) {
 exports.getProfile = async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.user._id })
-      .populate('userId', 'username email');
+      .populate('userId', 'username email')
+      .populate('matches.otherUserId', 'username email')
+      .populate('matches.matchId');
 
     if (!profile) {
       return res.status(404).json({ message: 'Profil non trouvé' });

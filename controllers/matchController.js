@@ -1,6 +1,7 @@
 const Match = require('../models/Match');
 const Profile = require('../models/Profile');
 const { computeDistanceKm } = require('../utils/distanceHelper');
+const { pullMatchFromBothProfiles } = require('../utils/matchProfileSync');
 
 // Récupère tous les matches de l'utilisateur
 exports.getMatches = async (req, res) => {
@@ -144,7 +145,7 @@ exports.removeMatch = async (req, res) => {
       return res.status(404).json({ message: 'Profil non trouvé' });
     }
 
-    // Supprime le match
+    await pullMatchFromBothProfiles(matchId);
     await Match.deleteOne({ _id: matchId });
     await Profile.updateOne(
       { userId: req.user._id },

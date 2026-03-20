@@ -5,6 +5,7 @@ const User = require('../models/User');
 const { SWIPE_LIMIT } = require('../config/constants');
 const { createNotification } = require('../utils/notificationHelper');
 const { computeDistanceKm } = require('../utils/distanceHelper');
+const { pushMatchToBothProfiles, pullMatchFromBothProfiles } = require('../utils/matchProfileSync');
 // Normalise le profil pour la carte / frontend : assure location.latitude et location.longitude
 function normalizeProfileLocation(profile) {
   const p = profile && typeof profile.toObject === 'function' ? profile.toObject() : { ...profile };
@@ -61,6 +62,9 @@ exports.getProfiles = async (req, res) => {
     const likedUserIds = currentProfile.likedUsers || [];
 
     const blockedUserIds = currentProfile.blockedUsers || [];
+
+    const currentProfileMatches = currentProfile.matches || [];
+    const currentProfileMatchesUserIds = currentProfileMatches.map(match => match.otherUserId);
     // Récupère maxDistance (par défaut 300 km)
     const maxDistance = currentProfile.maxDistance || 300;
 
@@ -76,7 +80,7 @@ exports.getProfiles = async (req, res) => {
 
     if (!hasValidLocationFlag) {
       // Si pas de localisation valide, on retourne tous les profils disponibles (sans filtre de distance)
-      const excludedIds = [req.user._id, ...likedUserIds, ...blockedUserIds];
+      const excludedIds = [req.user._id, ...likedUserIds, ...blockedUserIds, ...currentProfileMatchesUserIds];
       const profiles = await Profile.find({
         userId: { $nin: excludedIds }
       })
@@ -94,7 +98,7 @@ exports.getProfiles = async (req, res) => {
     const rad = parseFloat(maxDistance);
 
     // Convertit les IDs en ObjectId pour la requête
-    const excludedUserIds = [req.user._id, ...likedUserIds, ...blockedUserIds]
+    const excludedUserIds = [req.user._id, ...likedUserIds, ...blockedUserIds, ...currentProfileMatchesUserIds]
 
     // Utilise $geoNear avec aggregate pour une meilleure performance
     const profiles = await Profile.aggregate([
@@ -290,6 +294,8 @@ exports.likeProfile = async (req, res) => {
         // Sauvegarder les deux profils après les modifications
         await currentProfile.save();
         await targetProfile.save();
+
+        await pushMatchToBothProfiles(match);
       } else {
         // Ce n'est pas un match, on ajoute juste à whoLikedMe de l'utilisateur cible
         if (!targetProfile.whoLikedMe) {
@@ -324,7 +330,7 @@ exports.likeProfile = async (req, res) => {
         type: 'match',
         relatedId: match._id,
         title: 'Nouveau match',
-        body: 'C\'est un match ! Vous pouvez discuter.'
+        body: 'Ça part sur un Jam ! Vous pouvez discuter.'
       });
     }
 
@@ -361,6 +367,7 @@ exports.removeLike = async (req, res) => {
     currentProfile.likedUsers = currentProfile.likedUsers.filter(id => id.toString() !== targetUserId.toString());
     const matchToDelete = await Match.findOne({ users: { $all: [currentProfile.userId.toString(), targetUserId] } });
     if (matchToDelete) {
+      await pullMatchFromBothProfiles(matchToDelete._id);
       await Match.deleteOne({ _id: matchToDelete._id });
     }
     const targetProfile = await Profile.findOne({ userId: targetUserId });

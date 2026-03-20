@@ -1,6 +1,7 @@
 const Message = require('../models/Message');
 const Match = require('../models/Match');
 const Profile = require('../models/Profile');
+const { syncLastMessageAtOnProfiles } = require('../utils/matchProfileSync');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { createNotification } = require('../utils/notificationHelper');
@@ -145,10 +146,11 @@ exports.sendMessage = async (req, res) => {
     });
     await message.save();
 
-    // Met à jour lastMessageAt du match si il existe
     if (match) {
-      match.lastMessageAt = new Date();
+      const now = new Date();
+      match.lastMessageAt = now;
       await match.save();
+      await syncLastMessageAtOnProfiles(match._id, now);
     }
 
     // Incrémente le compteur messageUnread du destinataire

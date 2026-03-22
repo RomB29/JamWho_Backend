@@ -5,7 +5,7 @@ const { SWIPE_LIMIT, MESSAGE_PROFILE_LIMIT } = require('../config/constants');
 exports.getPremiumInfo = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .select('isPremium stripeSubscriptionId premiumExpiresAt');
+      .select('isPremium premiumExpiresAt');
     if (!user) {
       return res.status(404).json({ message: 'Utilisateur non trouvé' });
     }
@@ -68,7 +68,6 @@ exports.getPremiumInfo = async (req, res) => {
     res.json({
       isPremium: isPremium,
       expiresAt: user.premiumExpiresAt ? user.premiumExpiresAt.toISOString() : null,
-      subscriptionId: user.stripeSubscriptionId || null,
       limits: {
         swipes: {
           limit: SWIPE_LIMIT,
@@ -161,32 +160,15 @@ exports.getLimits = async (req, res) => {
   }
 };
 
-// Met à jour le statut premium d'un utilisateur (pour admin ou système de paiement)
+/**
+ * Ancienne route permettant de forger isPremium — désactivée.
+ * Le premium ne peut être activé que via Stripe (checkout + webhooks) ou tâche serveur dédiée.
+ */
 exports.updatePremiumStatus = async (req, res) => {
-  try {
-    const { isPremium, expiresAt, subscriptionId } = req.body
-    
-
-    if (typeof isPremium !== 'boolean') {
-      return res.status(400).json({ message: 'isPremium doit être un boolean' });
-    }
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
-    }
-
-    user.isPremium = isPremium;
-    await user.save();
-
-    res.json({
-      success: true,
-      isPremium: user.isPremium,
-      message: isPremium ? 'Statut Premium activé' : 'Statut Premium désactivé'
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
-  }
+  return res.status(403).json({
+    message:
+      'Le statut premium ne peut pas être modifié via cette API. Utilisez l’abonnement Stripe.'
+  });
 };
 
 // Met à jour le nombre de swipes

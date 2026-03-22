@@ -2,6 +2,7 @@ const Match = require('../models/Match');
 const Profile = require('../models/Profile');
 const { computeDistanceKm } = require('../utils/distanceHelper');
 const { pullMatchFromBothProfiles } = require('../utils/matchProfileSync');
+const { serializePublicProfile, publicUserSummary } = require('../utils/responseSerializers');
 
 // Récupère tous les matches de l'utilisateur
 exports.getMatches = async (req, res) => {
@@ -12,7 +13,7 @@ exports.getMatches = async (req, res) => {
       users: req.user._id
     })
     .sort({ lastMessageAt: -1 })
-    .populate('users', 'username email');
+    .populate('users', 'username');
 
     // Pour chaque match, récupère le profil de l'autre utilisateur
     const matchesWithProfiles = await Promise.all(
@@ -31,20 +32,18 @@ exports.getMatches = async (req, res) => {
         const otherUserId = otherUser._id;
         const profile = await Profile.findOne({ userId: otherUserId });
 
-        let profileWithDistance = profile;
+        let profileWithDistance = null;
         if (profile && currentProfile) {
           const distance = computeDistanceKm(currentProfile, profile);
-          const p = profile.toObject ? profile.toObject() : profile;
-          profileWithDistance = {
-            ...p,
-            distanceCalculated: distance
-          };
+          profileWithDistance = serializePublicProfile(profile, { distanceCalculated: distance });
+        } else if (profile) {
+          profileWithDistance = serializePublicProfile(profile);
         }
 
         return {
           id: match._id,
-          user: otherUser,
-          profile: profileWithDistance || null,
+          user: publicUserSummary(otherUser),
+          profile: profileWithDistance,
           createdAt: match.createdAt,
           lastMessageAt: match.lastMessageAt
         };
@@ -68,7 +67,7 @@ exports.getMatch = async (req, res) => {
     const match = await Match.findOne({
       _id: id,
       users: req.user._id
-    }).populate('users', 'username email');
+    }).populate('users', 'username');
 
     if (!match) {
       return res.status(404).json({ message: 'Match non trouvé' });
@@ -88,19 +87,18 @@ exports.getMatch = async (req, res) => {
     const currentProfile = await Profile.findOne({ userId: req.user._id });
     const profile = await Profile.findOne({ userId: otherUserId });
 
-    let profileWithDistance = profile;
+    let profileWithDistance = null;
     if (profile && currentProfile) {
       const distance = computeDistanceKm(currentProfile, profile);
-      profileWithDistance = {
-        ...profile,
-        distanceCalculated: distance
-      };
+      profileWithDistance = serializePublicProfile(profile, { distanceCalculated: distance });
+    } else if (profile) {
+      profileWithDistance = serializePublicProfile(profile);
     }
 
     res.json({
       id: match._id,
-      user: otherUser,
-      profile: profileWithDistance || null,
+      user: publicUserSummary(otherUser),
+      profile: profileWithDistance,
       createdAt: match.createdAt,
       lastMessageAt: match.lastMessageAt
     });

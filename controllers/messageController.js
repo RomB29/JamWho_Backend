@@ -5,6 +5,11 @@ const { syncLastMessageAtOnProfiles } = require('../utils/matchProfileSync');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 const { createNotification } = require('../utils/notificationHelper');
+const {
+  serializeMessageDoc,
+  serializeConversationOtherUser,
+  serializeConversationProfileSummary
+} = require('../utils/responseSerializers');
 
 // Helper function pour générer un conversationId unique entre deux utilisateurs
 // Le conversationId est déterministe : il sera toujours le même pour deux utilisateurs donnés
@@ -61,7 +66,7 @@ exports.getMessages = async (req, res) => {
       .populate('senderId', 'username')
       .populate('receiverId', 'username');
 
-    res.json(messages);
+    res.json(messages.map((m) => serializeMessageDoc(m)));
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -175,7 +180,7 @@ exports.sendMessage = async (req, res) => {
     await message.populate('senderId', 'username');
     await message.populate('receiverId', 'username');
 
-    res.status(201).json(message);
+    res.status(201).json(serializeMessageDoc(message));
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -247,7 +252,7 @@ exports.getConversations = async (req, res) => {
       users: userId
     })
     .sort({ lastMessageAt: -1 })
-    .populate('users', 'username email');
+    .populate('users', 'username');
 
     // Pour chaque match, récupère le dernier message et le nombre de messages non lus
     const conversations = await Promise.all(
@@ -282,17 +287,8 @@ exports.getConversations = async (req, res) => {
         return {
           conversationId,
           matchId: match._id.toString(), // Gardé pour compatibilité
-          otherUser: {
-            id: otherUser._id.toString(),
-            username: otherUser.username,
-            email: otherUser.email
-          },
-          profile: profile ? {
-            id: profile._id.toString(),
-            pseudo: profile.pseudo,
-            photos: profile.photos || [],
-            description: profile.description
-          } : null,
+          otherUser: serializeConversationOtherUser(otherUser),
+          profile: serializeConversationProfileSummary(profile),
           lastMessage: lastMessage ? {
             id: lastMessage._id.toString(),
             content: lastMessage.content,

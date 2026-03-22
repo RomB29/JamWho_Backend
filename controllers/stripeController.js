@@ -61,7 +61,6 @@ exports.getCheckoutSessionStatus = async (req, res) => {
 
     res.json({
       status: session.status,
-      subscriptionId: subscriptionId || null,
       expiresAt
     });
   } catch (error) {

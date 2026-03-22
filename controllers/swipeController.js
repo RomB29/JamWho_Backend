@@ -6,22 +6,7 @@ const { SWIPE_LIMIT } = require('../config/constants');
 const { createNotification } = require('../utils/notificationHelper');
 const { computeDistanceKm } = require('../utils/distanceHelper');
 const { pushMatchToBothProfiles, pullMatchFromBothProfiles } = require('../utils/matchProfileSync');
-// Normalise le profil pour la carte / frontend : assure location.latitude et location.longitude
-function normalizeProfileLocation(profile) {
-  const p = profile && typeof profile.toObject === 'function' ? profile.toObject() : { ...profile };
-  if (p.location && p.location.coordinates && Array.isArray(p.location.coordinates) && p.location.coordinates.length >= 2) {
-    const [lng, lat] = p.location.coordinates.map(Number);
-    if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-      p.location = {
-        type: p.location.type || 'Point',
-        coordinates: p.location.coordinates,
-        latitude: lat,
-        longitude: lng
-      };
-    }
-  }
-  return p;
-}
+const { serializePublicProfile } = require('../utils/responseSerializers');
 
 
 // Helper function pour vérifier et réinitialiser les limites journalières
@@ -84,12 +69,11 @@ exports.getProfiles = async (req, res) => {
       const profiles = await Profile.find({
         userId: { $nin: excludedIds }
       })
-        .populate('userId', 'username email')
+        .populate('userId', 'username')
         .limit(50)
         .lean();
 
-      const normalized = profiles.map(normalizeProfileLocation);
-      return res.json(normalized);
+      return res.json(profiles.map((p) => serializePublicProfile(p)));
     }
 
     // Extrait les coordonnées
@@ -148,11 +132,10 @@ exports.getProfiles = async (req, res) => {
           maxDistance: 1,
           media: 1,
           location: 1,
-          likedUsers: 1,
-          distanceCalculated: 1, // Distance en mètres
+          locationName: 1,
+          distanceCalculated: 1,
           'userId._id': 1,
-          'userId.username': 1,
-          'userId.email': 1
+          'userId.username': 1
         }
       },
       {
@@ -160,18 +143,19 @@ exports.getProfiles = async (req, res) => {
       }
     ]);
 
-    // Convertit distanceCalculated en km et normalise location pour la carte (latitude/longitude)
-    const profilesWithDistance = profiles.map(profile => {
-      const base = {
-        ...profile,
-        distanceCalculated: profile.distanceCalculated ? parseFloat((profile.distanceCalculated / 1000).toFixed(2)) : 0,
-        userId: {
-          _id: profile.userId._id,
-          username: profile.userId.username,
-          email: profile.userId.email
-        }
-      };
-      return normalizeProfileLocation(base);
+    const profilesWithDistance = profiles.map((profile) => {
+      const km = profile.distanceCalculated
+        ? parseFloat((profile.distanceCalculated / 1000).toFixed(2))
+        : 0;
+      return serializePublicProfile(
+        {
+          ...profile,
+          userId: profile.userId
+            ? { _id: profile.userId._id, username: profile.userId.username }
+            : null
+        },
+        { distanceCalculated: km }
+      );
     });
 
     res.json(profilesWithDistance);
@@ -441,15 +425,11 @@ exports.getLikedProfiles = async (req, res) => {
     // Récupère les profils des utilisateurs likés (qui ne sont pas des matches)
     const profiles = await Profile.find({
       userId: { $in: likedUserIds }
-    }).populate('userId', 'username email');
+    }).populate('userId', 'username');
 
-    // Ajoute distanceCalculated en gardant la structure existante
     const profilesWithDistance = profiles.map((profile) => {
       const distance = computeDistanceKm(currentProfile, profile);
-      return {
-        ...normalizeProfileLocation(profile),
-        distanceCalculated: distance
-      };
+      return serializePublicProfile(profile, { distanceCalculated: distance });
     });
 
     res.json(profilesWithDistance);
@@ -489,16 +469,11 @@ exports.getWhoLikedMe = async (req, res) => {
     // Récupère les profils des utilisateurs qui ont liké l'utilisateur actuel (qui ne sont pas des matches)
     const profiles = await Profile.find({
       userId: { $in: whoLikedMeIds }
-    }).populate('userId', 'username email');
+    }).populate('userId', 'username');
 
-    // Ajoute distanceCalculated en gardant la structure existante
     const profilesWithDistance = profiles.map((profile) => {
       const distance = computeDistanceKm(currentProfile, profile);
-      const p = profile.toObject ? profile.toObject() : profile;
-      return {
-        ...normalizeProfileLocation(p),
-        distanceCalculated: distance
-      };
+      return serializePublicProfile(profile, { distanceCalculated: distance });
     });
 
     res.json(profilesWithDistance);

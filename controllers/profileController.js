@@ -1,71 +1,41 @@
 const Profile = require('../models/Profile');
 const User = require('../models/User');
 const getServerBaseUrl = require('../utils/serverBaseUrl');
+const {
+  normalizeInstruments,
+  transformPhotoUrls,
+  serializeOwnProfile,
+  serializePublicProfile
+} = require('../utils/responseSerializers');
+const {
+  rejectForbiddenProfileKeys,
+  validatePhotosArray,
+  validateMediaArray,
+  validateLocation,
+  validateMaxDistance,
+  validateStyles
+} = require('../utils/profileUpdateValidation');
 const fs = require('fs');
 const path = require('path');
 
-const SKILL_LEVELS = ['Novice', 'Learner', 'Intermediate', 'Advanced', 'Master', 'Teacher'];
-
-function normalizeInstruments(instruments) {
-  if (!instruments || !Array.isArray(instruments)) return [];
-  return instruments.map((item) => {
-    if (typeof item === 'string') {
-      return { name: item.trim(), level: 'Novice' };
-    }
-    if (item && typeof item === 'object' && item.name) {
-      const level = SKILL_LEVELS.includes(item.level) ? item.level : 'Novice';
-      return { name: String(item.name).trim(), level };
-    }
-    return null;
-  }).filter((item) => item && item.name && item.name.trim());
-}
-
-// Helper function pour transformer les URLs de photos relatives en URLs complètes
-function transformPhotoUrls(photos) {
-  if (!photos || !Array.isArray(photos)) {
-    return photos;
-  }
-  const baseUrl = getServerBaseUrl();
-  return photos.map(photo => {
-    // Si c'est déjà une URL complète (commence par http:// ou https://), on la garde telle quelle
-    if (photo && (photo.startsWith('http://') || photo.startsWith('https://'))) {
-      return photo;
-    }
-    // Sinon, on ajoute l'URL de base du serveur
-    if (photo && photo.startsWith('/')) {
-      return `${baseUrl}${photo}`;
-    }
-    return photo;
-  });
-}
+const MAX_INSTRUMENTS = 30;
 
 // Charge le profil de l'utilisateur connecté
 exports.getProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ userId: req.user._id })
-      .populate('userId', 'username email')
-      .populate('matches.otherUserId', 'username email')
-      .populate('matches.matchId');
+    const profile = await Profile.findOne({ userId: req.user._id }).populate(
+      'userId',
+      'username'
+    );
 
     if (!profile) {
       return res.status(404).json({ message: 'Profil non trouvé' });
     }
 
-    // Récupère les informations de l'utilisateur (pour isPremium)
     const user = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
     const isPremium = user ? await User.syncPremiumIfExpired(user) : false;
 
-    const profileObj = profile.toObject();
-    if (profileObj.photos) {
-      profileObj.photos = transformPhotoUrls(profileObj.photos);
-    }
-    if (profileObj.instruments && Array.isArray(profileObj.instruments)) {
-      profileObj.instruments = normalizeInstruments(profileObj.instruments);
-    }
-    if (profileObj.userId) {
-      profileObj.userId.isPremium = isPremium;
-    }
-    res.json(profileObj);
+    res.json(serializeOwnProfile(profile, { isPremium }));
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -74,8 +44,22 @@ exports.getProfile = async (req, res) => {
 // Met à jour le profil
 exports.updateProfile = async (req, res) => {
   try {
+    const keyCheck = rejectForbiddenProfileKeys(req.body);
+    if (!keyCheck.ok) {
+      return res.status(400).json({
+        message: keyCheck.message,
+        fields: keyCheck.fields
+      });
+    }
+
+    const userForLimits = await User.findById(req.user._id).select('isPremium premiumExpiresAt');
+    const isPremiumUser = userForLimits
+      ? await User.syncPremiumIfExpired(userForLimits)
+      : false;
+    const maxPhotos = isPremiumUser ? 6 : 3;
+    const maxMediaItems = isPremiumUser ? 20 : 2;
+
     const {
-      pseudo,
       age,
       sexe,
       photos,
@@ -92,7 +76,8 @@ exports.updateProfile = async (req, res) => {
     let profile = await Profile.findOne({ userId: req.user._id });
 
     if (!profile) {
-      const initialPseudo = (pseudo && String(pseudo).trim()) || req.user.username || '';
+      // Pseudo d’affichage = username du compte (pas modifiable via PUT — pas de champ client)
+      const initialPseudo = String(req.user.username || '').trim();
       const initialDesc = description !== undefined ? String(description) : '';
       if (initialPseudo.length < 4 || initialPseudo.length > 20) {
         return res.status(400).json({ message: 'Le pseudo doit contenir entre 4 et 20 caractères' });
@@ -100,30 +85,53 @@ exports.updateProfile = async (req, res) => {
       if (initialDesc.length > 400) {
         return res.status(400).json({ message: 'La description ne peut pas dépasser 400 caractères' });
       }
+
+      const photosCheck = validatePhotosArray(photos, maxPhotos);
+      if (!photosCheck.ok) {
+        return res.status(400).json({ message: photosCheck.message });
+      }
+      const mediaCheck = validateMediaArray(media, maxMediaItems);
+      if (!mediaCheck.ok) {
+        return res.status(400).json({ message: mediaCheck.message });
+      }
+      const locCheck = validateLocation(location);
+      if (!locCheck.ok) {
+        return res.status(400).json({ message: locCheck.message });
+      }
+      const distCheck = validateMaxDistance(maxDistance);
+      if (!distCheck.ok) {
+        return res.status(400).json({ message: distCheck.message });
+      }
+      const stylesCheck = validateStyles(styles);
+      if (!stylesCheck.ok) {
+        return res.status(400).json({ message: stylesCheck.message });
+      }
+
+      const normalizedInstruments = normalizeInstruments(instruments);
+      if (normalizedInstruments.length > MAX_INSTRUMENTS) {
+        return res.status(400).json({ message: 'Trop d\'instruments' });
+      }
+
       profile = new Profile({
         userId: req.user._id,
         pseudo: initialPseudo.trim(),
         age: age || 18,
         sexe: sexe || 'autre',
-        photos: photos || [],
+        photos: photosCheck.value !== undefined ? photosCheck.value : [],
         description: initialDesc,
-        instruments: normalizeInstruments(instruments),
-        styles: styles || [],
-        maxDistance: maxDistance || 300,
-        media: media || [],
+        instruments: normalizedInstruments,
+        styles: stylesCheck.value !== undefined ? stylesCheck.value : [],
+        maxDistance: distCheck.value !== undefined ? distCheck.value : 300,
+        media: mediaCheck.value !== undefined ? mediaCheck.value : [],
         locationName: locationName || city || null
       });
-    } else {
-      // Met à jour le profil
-      if (pseudo !== undefined) {
-        const trimmed = String(pseudo).trim();
-        if (trimmed.length < 4 || trimmed.length > 20) {
-          return res.status(400).json({ message: 'Le pseudo doit contenir entre 4 et 20 caractères' });
-        }
-        profile.pseudo = trimmed;
+      if (locCheck.value !== undefined && locCheck.value !== null) {
+        profile.location = locCheck.value;
       }
+    } else {
+      // pseudo : non modifiable via PUT (inchangé en base même si le client envoie profile.pseudo)
       if (age !== undefined) {
-        const ageNum = parseInt(age);
+        const ageNum = parseInt(age, 10);
         if (!isNaN(ageNum) && ageNum >= 18 && ageNum <= 100) {
           profile.age = ageNum;
         } else {
@@ -137,7 +145,13 @@ exports.updateProfile = async (req, res) => {
           return res.status(400).json({ message: 'Le sexe doit être "homme", "femme" ou "autre"' });
         }
       }
-      if (photos !== undefined) profile.photos = photos;
+      if (photos !== undefined) {
+        const photosCheck = validatePhotosArray(photos, maxPhotos);
+        if (!photosCheck.ok) {
+          return res.status(400).json({ message: photosCheck.message });
+        }
+        profile.photos = photosCheck.value;
+      }
       if (description !== undefined) {
         const desc = String(description);
         if (desc.length > 400) {
@@ -145,54 +159,60 @@ exports.updateProfile = async (req, res) => {
         }
         profile.description = desc;
       }
-      if (instruments !== undefined) profile.instruments = normalizeInstruments(instruments);
-      if (styles !== undefined) profile.styles = styles;
-      if (maxDistance !== undefined) profile.maxDistance = maxDistance;
-      if (media !== undefined) profile.media = media;
-      
-      // Gère la localisation : convertit latitude/longitude en format GeoJSON
+      if (instruments !== undefined) {
+        const normalizedInstruments = normalizeInstruments(instruments);
+        if (normalizedInstruments.length > MAX_INSTRUMENTS) {
+          return res.status(400).json({ message: 'Trop d\'instruments' });
+        }
+        profile.instruments = normalizedInstruments;
+      }
+      if (styles !== undefined) {
+        const stylesCheck = validateStyles(styles);
+        if (!stylesCheck.ok) {
+          return res.status(400).json({ message: stylesCheck.message });
+        }
+        profile.styles = stylesCheck.value;
+      }
+      if (maxDistance !== undefined) {
+        const distCheck = validateMaxDistance(maxDistance);
+        if (!distCheck.ok) {
+          return res.status(400).json({ message: distCheck.message });
+        }
+        profile.maxDistance = distCheck.value;
+      }
+      if (media !== undefined) {
+        const mediaCheck = validateMediaArray(media, maxMediaItems);
+        if (!mediaCheck.ok) {
+          return res.status(400).json({ message: mediaCheck.message });
+        }
+        profile.media = mediaCheck.value;
+      }
+
       if (location !== undefined) {
-        if (location.latitude !== undefined && location.longitude !== undefined) {
-          // Format avec latitude/longitude séparés
-          if (location.latitude !== null && location.longitude !== null) {
-            profile.location = {
-              type: 'Point',
-              coordinates: [location.longitude, location.latitude] // GeoJSON: [longitude, latitude]
-            };
-          } else {
-            profile.location = {
-              type: 'Point',
-              coordinates: null
-            };
-          }
-        } else if (location.coordinates) {
-          // Format GeoJSON déjà correct
-          profile.location = location;
-        } else if (location === null) {
-          profile.location = {
-            type: 'Point',
-            coordinates: null
-          };
+        const locCheck = validateLocation(location);
+        if (!locCheck.ok) {
+          return res.status(400).json({ message: locCheck.message });
+        }
+        if (locCheck.value !== undefined) {
+          profile.location = locCheck.value;
         }
       }
-      if (locationName !== undefined) profile.locationName = locationName ? String(locationName).trim() : null;
-      if (city !== undefined && profile.locationName == null) profile.locationName = city ? String(city).trim() : null;
-      
+      if (locationName !== undefined) {
+        profile.locationName = locationName ? String(locationName).trim() : null;
+      }
+      if (city !== undefined && profile.locationName == null) {
+        profile.locationName = city ? String(city).trim() : null;
+      }
+
       profile.updatedAt = new Date();
     }
 
     await profile.save();
+    await profile.populate('userId', 'username');
 
-    const profileObj = profile.toObject();
-    if (profileObj.photos) {
-      profileObj.photos = transformPhotoUrls(profileObj.photos);
-    }
-    if (profileObj.instruments && Array.isArray(profileObj.instruments)) {
-      profileObj.instruments = normalizeInstruments(profileObj.instruments);
-    }
     res.json({
       success: true,
-      profile: profileObj
+      profile: serializeOwnProfile(profile, { isPremium: isPremiumUser })
     });
   } catch (error) {
     res.status(500).json({ message: 'Erreur lors de la mise à jour du profil', error: error.message });
@@ -203,21 +223,13 @@ exports.updateProfile = async (req, res) => {
 exports.getProfileById = async (req, res) => {
   try {
     const { id } = req.params;
-    const profile = await Profile.findOne({ userId: id })
-      .populate('userId', 'username email');
+    const profile = await Profile.findOne({ userId: id }).populate('userId', 'username');
 
     if (!profile) {
       return res.status(404).json({ message: 'Profil non trouvé' });
     }
 
-    const profileObj = profile.toObject();
-    if (profileObj.photos) {
-      profileObj.photos = transformPhotoUrls(profileObj.photos);
-    }
-    if (profileObj.instruments && Array.isArray(profileObj.instruments)) {
-      profileObj.instruments = normalizeInstruments(profileObj.instruments);
-    }
-    res.json(profileObj);
+    res.json(serializePublicProfile(profile));
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }
@@ -607,10 +619,15 @@ exports.deleteSong = async (req, res) => {
 // Block user
 exports.blockUser = async (req, res) => {
   try {
-    const { _id, username, email } = req.body.blockedUserId;
-    const targetUserId = _id;
+    const raw = req.body.blockedUserId;
+    const targetUserId =
+      typeof raw === 'string' || raw instanceof String
+        ? raw
+        : raw && typeof raw === 'object'
+          ? raw._id || raw.id
+          : null;
     if (!targetUserId) {
-      return res.status(400).json({ message: 'targetUserId requis' });
+      return res.status(400).json({ message: 'blockedUserId requis' });
     }
     if (targetUserId === req.user._id.toString()) {
       return res.status(400).json({ message: 'Vous ne pouvez pas vous bloquer vous-même' });

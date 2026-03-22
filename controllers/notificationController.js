@@ -142,7 +142,12 @@ exports.markNotificationRead = async (req, res) => {
     if (!notif) {
       return res.status(404).json({ message: 'Notification non trouvée' });
     }
-    res.json({ success: true, notification: notif });
+    res.json({
+      success: true,
+      id: notif._id,
+      read: notif.read,
+      readAt: notif.readAt
+    });
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }

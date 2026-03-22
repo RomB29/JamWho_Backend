@@ -290,7 +290,12 @@ exports.loginWithGoogle = async (req, res) => {
 // Vérifie l'authentification (endpoint pour vérifier le token)
 exports.checkAuth = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id).select(
+      '_id username email onboardingValidated isPremium premiumExpiresAt'
+    );
+    if (!user) {
+      return res.status(401).json({ message: 'Utilisateur non trouvé' });
+    }
     const isPremium = await User.syncPremiumIfExpired(user);
     res.json({
       isAuthenticated: true,

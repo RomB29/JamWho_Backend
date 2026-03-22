@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const mediaSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['youtube', 'mp3', 'soundcloud'],
+    enum: ['youtube', 'mp3', 'soundcloud', 'm4a'],
     required: true
   },
   url: {

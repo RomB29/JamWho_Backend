@@ -261,7 +261,7 @@ exports.uploadPhoto = async (req, res) => {
     } else {
       // Ajoute la nouvelle photo en première position (dernière uploadée)
       profile.photos.unshift(imageUrl);
-      
+
       // Optionnel: Limiter le nombre de photos (par exemple, garder seulement les 6 dernières)
       if (profile.photos.length > 6) {
         profile.photos = profile.photos.slice(0, 6);
@@ -281,9 +281,9 @@ exports.uploadPhoto = async (req, res) => {
       photos: photosUrls
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Erreur lors de l\'upload de la photo', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Erreur lors de l\'upload de la photo',
+      error: error.message
     });
   }
 };
@@ -310,7 +310,7 @@ exports.deletePhoto = async (req, res) => {
       const baseUrl = getServerBaseUrl();
       const normalizedPhotoUrl = photoUrl.replace(baseUrl, '');
       const normalizedPhotos = profile.photos.map(p => p.replace(baseUrl, ''));
-      
+
       if (!normalizedPhotos.includes(normalizedPhotoUrl)) {
         return res.status(404).json({ message: 'Photo non trouvée dans le profil' });
       }
@@ -321,7 +321,7 @@ exports.deletePhoto = async (req, res) => {
     // ou: /profile/{userId}/photo_uploads/{filename}
     let relativePath = photoUrl;
     const baseUrl = getServerBaseUrl();
-    
+
     // Si c'est une URL complète, on extrait le chemin relatif
     if (photoUrl.startsWith('http://') || photoUrl.startsWith('https://')) {
       try {
@@ -347,9 +347,9 @@ exports.deletePhoto = async (req, res) => {
           return url.split('?')[0]; // Enlève les paramètres manuellement
         }
       };
-      
+
       const normalizedPhotoUrl = normalizeGoogleUrl(photoUrl);
-      
+
       // Retire la photo de la liste du profil en comparant les URLs normalisées
       const initialLength = profile.photos.length;
       profile.photos = profile.photos.filter(p => {
@@ -359,23 +359,23 @@ exports.deletePhoto = async (req, res) => {
         // Pour les autres photos, comparaison exacte
         return p !== photoUrl;
       });
-      
+
       // Vérifie que la photo a bien été trouvée et supprimée
       if (profile.photos.length === initialLength) {
         return res.status(404).json({ message: 'Photo non trouvée dans le profil' });
       }
-      
+
       // Vérifie qu'il reste au moins une photo
       if (profile.photos.length === 0) {
         return res.status(400).json({ message: 'Vous devez avoir au moins une photo' });
       }
-      
+
       profile.updatedAt = new Date();
       await profile.save();
-      
+
       // Transforme les URLs de photos en URLs complètes avant de retourner
       const photosUrls = transformPhotoUrls(profile.photos);
-      
+
       return res.json({
         success: true,
         message: 'Photo supprimée avec succès',
@@ -436,9 +436,9 @@ exports.deletePhoto = async (req, res) => {
       photos: photosUrls
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Erreur lors de la suppression de la photo', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Erreur lors de la suppression de la photo',
+      error: error.message
     });
   }
 };
@@ -470,7 +470,12 @@ exports.uploadSong = async (req, res) => {
     let mediaType = 'mp3'; // par défaut
     if (fileExtension === 'mp3' || fileExtension === 'mpeg') {
       mediaType = 'mp3';
-    } else if (fileExtension === 'wav') {
+    }
+
+    if (fileExtension === 'm4a') {
+      mediaType = 'm4a';
+    }
+    else if (fileExtension === 'wav') {
       mediaType = 'mp3'; // On stocke aussi les WAV comme mp3 dans le modèle
     }
 
@@ -502,9 +507,9 @@ exports.uploadSong = async (req, res) => {
       media: savedMedia // Retourne l'objet média complet avec filename
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Erreur lors de l\'upload du fichier audio', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Erreur lors de l\'upload du fichier audio',
+      error: error.message
     });
   }
 };
@@ -533,7 +538,7 @@ exports.deleteSong = async (req, res) => {
       const normalizedSongUrl = songUrl.replace(baseUrl, '');
       const normalizedMediaUrls = profile.media.map(m => m.url.replace(baseUrl, ''));
       const normalizedIndex = normalizedMediaUrls.findIndex(url => url === normalizedSongUrl);
-      
+
       if (normalizedIndex === -1) {
         return res.status(404).json({ message: 'Fichier audio non trouvé dans le profil' });
       }
@@ -544,7 +549,7 @@ exports.deleteSong = async (req, res) => {
     // ou: /song/{userId}/song_uploads/{filename}
     let relativePath = songUrl;
     const baseUrl = getServerBaseUrl();
-    
+
     // Si c'est une URL complète, on extrait le chemin relatif
     if (songUrl.startsWith('http://') || songUrl.startsWith('https://')) {
       try {
@@ -609,9 +614,9 @@ exports.deleteSong = async (req, res) => {
       media: profile.media
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Erreur lors de la suppression du fichier audio', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Erreur lors de la suppression du fichier audio',
+      error: error.message
     });
   }
 };
@@ -646,9 +651,9 @@ exports.blockUser = async (req, res) => {
       message: 'Utilisateur bloqué avec succès'
     });
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Erreur lors du blocage de l\'utilisateur', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Erreur lors du blocage de l\'utilisateur',
+      error: error.message
     });
   }
 };
@@ -677,9 +682,9 @@ exports.unblockUser = async (req, res) => {
     message: 'Utilisateur débloqué avec succès'
   });
   } catch (error) {
-    res.status(500).json({ 
-      message: 'Erreur lors du déblocage de l\'utilisateur', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Erreur lors du déblocage de l\'utilisateur',
+      error: error.message
     });
   }
 };

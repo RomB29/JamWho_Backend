@@ -90,7 +90,7 @@ function createUploadSong(type) {
     limits: { fileSize: SONG_FILE_SIZE_MAX }, // Set the maximum file size limit
     fileFilter: (req, file, cb) => {
       // Validation supplémentaire du type de fichier
-      const allowedMimes = ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm']
+      const allowedMimes = ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/wav', 'audio/ogg', 'audio/webm']
       if (allowedMimes.includes(file.mimetype)) {
         cb(null, true)
       } else {

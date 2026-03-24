@@ -3,7 +3,7 @@
  * pour éviter toute modification de champs internes ou injection via le JSON.
  */
 
-const MEDIA_TYPES = ['youtube', 'mp3', 'soundcloud'];
+const MEDIA_TYPES = ['youtube', 'mp3', 'soundcloud', 'm4a'];
 
 /**
  * Champs internes / relations : jamais modifiables via PUT (le client peut envoyer

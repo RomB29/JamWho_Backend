@@ -55,7 +55,7 @@ function createUploadSong(type) {
     },
     filename: (req, file, cb) => {
       // Valide que c'est bien un fichier audio
-      const allowedMimes = ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm']
+      const allowedMimes = ['audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/wav', 'audio/ogg', 'audio/webm']
       if (!allowedMimes.includes(file.mimetype)) {
         return cb(new Error('Type de fichier non autorisé. Seuls les fichiers audio sont acceptés.'))
       }

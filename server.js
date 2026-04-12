@@ -166,3 +166,13 @@ app.listen(PORT, () => {
   console.log(`📡 API disponible sur http://localhost:${PORT}/api`);
 });
 
+// Purge périodique des comptes dont l'onboarding n'est pas validé après la fenêtre de grâce (défaut 24 h)
+if (process.env.DISABLE_ONBOARDING_CLEANUP !== 'true') {
+  const { runCleanupUnvalidatedUsers } = require('./jobs/cleanupUnvalidatedUsers');
+  const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+  const run = () =>
+    runCleanupUnvalidatedUsers().catch((err) => console.error('[cleanup]', err.message));
+  setTimeout(run, 60_000);
+  setInterval(run, CLEANUP_INTERVAL_MS);
+}
+

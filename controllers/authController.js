@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Profile = require('../models/Profile');
 const jwt = require('jsonwebtoken');
 
+const { generateCodeForgottenPassword, sendEmail } = require('../middleware/mailHandler');
+
 // Génère un token JWT
 const generateToken = (userId) => {
   return jwt.sign(
@@ -324,6 +326,65 @@ exports.onboardingValidated = async (req, res) => {
     user.onboardingValidated = true;
     await user.save();
     res.json({ message: 'Onboarding validé avec succès' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { pseudo, currentPassword, newPassword } = req.body;
+    const user = await User.findOne({ username: pseudo });
+    if (!user) {
+      return res.status(401).json({ message: 'Utilisateur non trouvé' });
+    }
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Mot de passe incorrect' });
+    }
+    user.password = newPassword;
+    await user.save();
+    res.json({ message: 'Mot de passe changé avec succès' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+exports.sendCodeForgottenPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ message: 'Utilisateur non trouvé' });
+    }
+    const codeResetPassword = generateCodeForgottenPassword();
+    const emailSubject = 'Jamcloud - Code de réinitialisation de mot de passe';
+    const emailText = `Salut ${user.username},
+
+    Veuillez vérifier le code suivant pour pouvoir réinitialiser votre mot de passe: ${codeResetPassword}
+
+    Have fun,
+    Romain BODEC - Jamcloud team`
+
+    sendEmail(user.email, emailSubject, emailText);
+    await user.save();
+    res.json({ message: 'Code envoyé avec succès' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+exports.checkCodeForgottenPassword = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ message: 'Utilisateur non trouvé' });
+    }
+    if (user.forgottenPasswordCode !== code) {
+      return res.status(401).json({ message: 'Code incorrect' });
+    }
+    res.json({ message: 'Code correct' });
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur', error: error.message });
   }

@@ -14,6 +14,7 @@ router.get('/check', auth, authController.checkAuth);
 
 router.post('/onboarding-validated', authController.onboardingValidated)
 router.post('/change-password', authController.changePassword)
+router.post('/reset-password', authController.resetPassword)
 router.post('/send-code-forgotten-password', authController.sendCodeForgottenPassword)
 router.post('/check-code-forgotten-password', authController.checkCodeForgottenPassword)
 

@@ -48,7 +48,7 @@ function generateRandomVerificationCode () {
 }
 
 function generateCodeForgottenPassword () {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#?'
+  const characters = '0123456789'
   let code = ''
   for (let i = 0; i < CODE_RESET_PASSWORD_LENGTH; i++) {
     const randomIndex = Math.floor(Math.random() * (characters.length))

@@ -350,6 +350,25 @@ exports.changePassword = async (req, res) => {
   }
 };
 
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json({ message: 'Email et nouveau mot de passe requis' });
+    }
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ message: 'Utilisateur non trouvé' });
+    }
+    user.password = newPassword;
+    await user.save();
+    return res.json({ message: 'Mot de passe réinitialisé avec succès' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+
 exports.sendCodeForgottenPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -367,6 +386,7 @@ exports.sendCodeForgottenPassword = async (req, res) => {
     Romain BODEC - Jamcloud team`
 
     sendEmail(user.email, emailSubject, emailText);
+    user.forgottenPasswordCode = codeResetPassword;
     await user.save();
     res.json({ message: 'Code envoyé avec succès' });
   } catch (error) {
@@ -377,11 +397,12 @@ exports.sendCodeForgottenPassword = async (req, res) => {
 exports.checkCodeForgottenPassword = async (req, res) => {
   try {
     const { email, code } = req.body;
+    const codeNumber = parseInt(code);
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(401).json({ message: 'Utilisateur non trouvé' });
     }
-    if (user.forgottenPasswordCode !== code) {
+    if (user.forgottenPasswordCode !== codeNumber) {
       return res.status(401).json({ message: 'Code incorrect' });
     }
     res.json({ message: 'Code correct' });

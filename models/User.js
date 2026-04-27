@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema({
     },
     minlength: 6
   },
+  forgottenPasswordCode: {
+    type: Number,
+    default: null
+  },
   googleId: {
     type: String,
     sparse: true, // Permet plusieurs null mais un seul non-null
